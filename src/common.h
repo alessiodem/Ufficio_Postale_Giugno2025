@@ -22,6 +22,7 @@
 #define ENDEDDAY (SIGUSR1)
 #define SECS_FOR_A_DAY (1440 * config_shm_ptr->N_NANO_SECS / 1000000000)
 #define NSECS_FOR_A_DAY ((1440 * config_shm_ptr->N_NANO_SECS) % 1000000000)
+#define LINE_BUFFER_SIZE 1024
 //TODO: #define P_BREAK
 
 

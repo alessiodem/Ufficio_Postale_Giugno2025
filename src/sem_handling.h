@@ -6,6 +6,7 @@
 #include <sys/sem.h>
 
 int create_semaphore(key_t key, int num_sems, int sem_flags);
+int create_semaphore_and_setval(key_t key, int num_sems, int sem_flags, int val);
 int get_semaphore(key_t key, int num_sems);
 void semaphore_decrement(int sem_id);
 void semaphore_increment(int sem_id);

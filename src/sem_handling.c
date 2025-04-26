@@ -15,6 +15,19 @@ int create_semaphore(key_t key, int num_sems, int sem_flags) {
     }
     return sem_id;
 }
+//todo: testare create_semaphore_and_setval
+int create_semaphore_and_setval(key_t key, int num_sems, int sem_flags, int val) {
+    int sem_id = semget(key, num_sems, sem_flags);
+    if (sem_id == -1) {
+        perror("Error creating semaphore");
+        return -1;
+    }
+    if (semctl(sem_id, 0, SETVAL, val) == -1) {
+        perror("semctl SETVAL fallita");
+        exit(EXIT_FAILURE);
+    }
+    return sem_id;
+}
 
 // Funzione per ottenere l'ID di un semaforo esistente
 int get_semaphore(key_t key, int num_sems) {
