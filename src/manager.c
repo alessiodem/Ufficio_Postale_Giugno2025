@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,13 @@ Seat *seats_shm_ptr;
 int no_children = 0;
 pid_t *child_pids = NULL;
 
+//IPCs
+int children_ready_sync_sem_id;
+int children_go_sync_sem_id;
+
+//PROTOTIPI FUNZIONI
+void reset_resources();
+
 //FUNZIONI  AUSILIARIE
 //todo: LA FUNZIONE SOTTO potrebbe ESSERE SEMPLIFICATA ESSENDO CHE CONOSCIAMO APRIORI IL NUMERO DEI FIGLI TOTALI, unico prolema è che dobbiamo prma leggere le conf quindi non possiamo inizializzare l'array con la dimensione, si può  fare ma già così worka bene
 //
@@ -27,7 +35,8 @@ void add_child_pid(pid_t child_pid) {
         exit(EXIT_FAILURE);
     }
     child_pids = temp;
-    child_pids[no_children++] = child_pid;
+    no_children++;
+    child_pids[no_children] = child_pid;
 }
 
 void fork_and_execute(const char *file_path, char *const argv[]) {
@@ -54,11 +63,29 @@ void fork_and_execute(const char *file_path, char *const argv[]) {
     }
 }
 
+//FUNZIONI DEBUG
+void __debug__print_todays_seats_service(){
+    for (int i =0;  i<config_shm_ptr->NOF_WORKER_SEATS;i++)
+        printf("[DEBUG]Lo sportello %d puo' erogare il servizio %d\n", i,seats_shm_ptr[i].service_type);
+}
+
 
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void setup_ipcs() {
     //todo: aggiungere passo passo le inizializzazioni che servono
+    children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, EXCLUSIVE_CREATE_FLAG);
+    if (children_ready_sync_sem_id == -1) {
+        perror("Errore nella creazione del semaforo di sincronizzazione per i figli");
+        exit(EXIT_FAILURE);
+    }else
+        semctl(children_ready_sync_sem_id, 0, SETVAL, 0);//todo: controllare se è superfluo
 
+    children_go_sync_sem_id = semget(KEY_SYNC_CHILDREN_START_SEM, 1, EXCLUSIVE_CREATE_FLAG);
+    if (children_go_sync_sem_id == -1) {
+        perror("Errore nella creazione del semaforo di partenza per i figli");
+        exit(EXIT_FAILURE);
+    }else
+        semctl(children_go_sync_sem_id, 0, SETVAL, 1);
 }
 void load_config(FILE *config_file) {
     int incorrect_config = 0;
@@ -102,7 +129,6 @@ void load_config(FILE *config_file) {
 void compute_daytime(){
     int secs_for_a_day = (1440 * config_shm_ptr->N_NANO_SECS) / 1000000000;
     int nsecs_for_a_day = (1440 * config_shm_ptr->N_NANO_SECS) % 1000000000;
-    struct timespec ts;
     ts.tv_sec=secs_for_a_day;
     ts.tv_nsec=nsecs_for_a_day;
 }
@@ -161,15 +187,55 @@ void setup_simulation(){
     create_users();
     create_ticket_dispenser();
 }
-//FUNZIONI SMANTELLAMENTO SIMULAZIONE
+void randomize_seats_service(){
+    for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++)
+        seats_shm_ptr[i].service_type=get_random_service_type();
+}
+//FUNZIONI DI FLOW PRINCIPALE
+void wait_to_all_childs_be_ready(){
+
+    printf("[DEBUG] Direttore: aspetto che i figli siano pronti. \n");
+    semaphore_do(children_ready_sync_sem_id, -no_children);
+
+    printf("[DEBUG] Direttore: SET!. \n");
+
+    semaphore_decrement(children_go_sync_sem_id);
+    printf("[DEBUG] Direttore: GO!!! \n\n");
+}
+
+void notify_day_ended(){
+    for (int i =0; i<no_children; i++)
+        kill(child_pids[i], ENDEDDAY);
+    //todo: contare gli utenti  ancora in coda per l'explode threshld
+    //potrebbe non essere il punto giusto per il todo sopra.
+    reset_resources();
+}
+
+//FUNZIONI DI PULIZIA IPC
+void reset_resources(){
+    // Reset dei semafori
+    if (semctl(children_ready_sync_sem_id, 0, SETVAL, 0) == -1) {
+        perror("[ERRORE]Errore nel reset del semaforo children_ready_sync_sem_id");
+    } else {
+        //printf("[DEBUG]Semaforo children_ready_sync_sem_id resettato a %d\n", children_ready_sync_sem_id);
+    }
+
+    if (semctl(children_go_sync_sem_id, 0, SETVAL, 1) == -1) {
+        perror("[ERRORE]Errore nel reset del semaforo children_go_sync_sem_id");
+    } else {
+        //printf("[DEBUG]Semaforo children_go_sync_sem_id resettato a %d\n", children_go_sync_sem_id);
+    }
+
+}
 void free_memory() {
 
 }
 
+
 int main (int argc, char *argv[]){
 
 
-    //Alessandro ha agigunto un metodo per pulire le ipc in questa riga, non so se vada effettivamente aggiunto perché il programma dovrebbe fare questo tipo di puliziadopo la fine della simulazione ma prima della fine dell'esecuzione del amager in modo da non lasciare risorse allocate quando non servono
+    //Alessandro ha aggiunto un metodo per pulire le ipc in questa riga, non so se vada effettivamente aggiunto perché il programma dovrebbe fare questo tipo di puliziadopo la fine della simulazione ma prima della fine dell'esecuzione del amager in modo da non lasciare risorse allocate quando non servono
     //è però possibile che la simulazione non venga terminata correttamente quindi forse ha senso inserirla
     //todo: discutere sui commenti sopra
     //sezione: lettura argomenti
@@ -187,10 +253,19 @@ int main (int argc, char *argv[]){
     }
     load_config(config_file);
 
-    printf("[DEBUG] Simulazione avviata.\n");
-
-    //sezione: setup risorse e processi
     setup_simulation();
 
+    printf("[DEBUG] Simulazione avviata.\n");
+    for (int days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
+        __debug__print_todays_seats_service();
 
+        wait_to_all_childs_be_ready();//todo: cambiare childs in childrens (in questo momento non funzional il refactor porco dio )
+        printf("[DEBUG] Giorno %d iniziato.\n", days_passed + 1);
+
+        nanosleep(&ts, NULL);
+
+        notify_day_ended();
+
+        randomize_seats_service();
+    }
 }
