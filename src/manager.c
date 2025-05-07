@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/shm.h>
 #include <time.h>
 #include <unistd.h>
 #include "common.h"
@@ -21,7 +22,6 @@ int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
 
 //PROTOTIPI FUNZIONI
-void reset_resources();
 
 //FUNZIONI  AUSILIARIE
 //todo: LA FUNZIONE SOTTO potrebbe ESSERE SEMPLIFICATA ESSENDO CHE CONOSCIAMO APRIORI IL NUMERO DEI FIGLI TOTALI, unico prolema è che dobbiamo prma leggere le conf quindi non possiamo inizializzare l'array con la dimensione, si può  fare ma già così worka bene
@@ -208,10 +208,9 @@ void notify_day_ended(){
         kill(child_pids[i], ENDEDDAY);
     //todo: contare gli utenti  ancora in coda per l'explode threshld
     //potrebbe non essere il punto giusto per il todo sopra.
-    reset_resources();
 }
 
-//FUNZIONI DI PULIZIA IPC
+//FUNZIONI DI PULIZIA
 void reset_resources(){
     // Reset dei semafori
     if (semctl(children_ready_sync_sem_id, 0, SETVAL, 0) == -1) {
@@ -229,6 +228,30 @@ void reset_resources(){
 }
 void free_memory() {
 
+    free(child_pids);
+
+    shmdt(config_shm_ptr);
+    shmdt(seats_shm_ptr);
+
+    semctl(children_ready_sync_sem_id, 0, IPC_RMID);//TODO: controllare se vengono effettivamente deallocate (IPC_RMID non rimuove, le marchia come removibili everranno rimosse quanod luntimo processo si stacca da loro)
+    semctl(children_go_sync_sem_id, 0, IPC_RMID);
+
+    //semafori degli sportelli
+    for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
+        semctl(seats_shm_ptr[i].worker_sem_id, 0, IPC_RMID);
+        semctl(seats_shm_ptr[i].user_sem_id, 0, IPC_RMID);
+    }
+}
+
+void term_childrens() {
+    printf("[DEBUG] Terminazione della simulazione: terminazione di tutti i processi figli...\n");
+    for (int i = 0; i < no_children; i++) {
+        if (kill(child_pids[i], SIGTERM) == -1) {
+            perror("Errore durante la terminazione del processo figlio");
+        } else {
+            // printf("[DEBUG] Segnale di terminazione inviato al processo figlio %d\n", child_pids[i]);
+        }
+    }
 }
 
 
@@ -255,17 +278,29 @@ int main (int argc, char *argv[]){
 
     setup_simulation();
 
-    printf("[DEBUG] Simulazione avviata.\n");
+
+    printf("[DEBUG] La simulazione sta per essere avviata.\n");
+
     for (int days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
         __debug__print_todays_seats_service();
 
         wait_to_all_childs_be_ready();//todo: cambiare childs in childrens (in questo momento non funzional il refactor porco dio )
-        printf("[DEBUG] Giorno %d iniziato.\n", days_passed + 1);
+        printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
 
         nanosleep(&ts, NULL);
 
         notify_day_ended();
-
         randomize_seats_service();
+        reset_resources();
+        //todo: aggiungere lettura analytics dove necessario
+
+        printf("[DEBUG] Giorno %d terminato.\n", days_passed);
     }
+        printf("[DEBUG] Simulazione terminata.\n");
+
+    term_childrens();
+    free_memory();
+
+
+    return 0;
 }
