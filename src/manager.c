@@ -85,7 +85,17 @@ void setup_ipcs() {
         perror("Errore nella creazione del semaforo di partenza per i figli");
         exit(EXIT_FAILURE);
     }else
-        semctl(children_go_sync_sem_id, 0, SETVAL, 1);
+        semctl(children_go_sync_sem_id, 0, SETVAL, 1);//todo: capire se va controllato il ritorno della funzione
+    int seats_shm_id = shmget(KEY_SEATS_SHM, sizeof(Seat) * config_shm_ptr->NOF_WORKER_SEATS, EXCLUSIVE_CREATE_FLAG);
+    if (seats_shm_id == -1) {
+        perror("Errore nella creazione della memoria condivisa per i posti");
+        exit(EXIT_FAILURE);
+    }
+    seats_shm_ptr = shmat(seats_shm_id, NULL, 0);
+    if (seats_shm_ptr == (void *)-1) {
+        perror("[ERROR] shmat() per seats_shm fallito");
+        exit(EXIT_FAILURE);
+    }
 }
 void load_config(FILE *config_file) {
     int incorrect_config = 0;
@@ -127,7 +137,7 @@ void load_config(FILE *config_file) {
 
 //todo: test
 void compute_daytime(){
-    int secs_for_a_day = (1440 * config_shm_ptr->N_NANO_SECS) / 1000000000;
+    int secs_for_a_day = (1440 * config_shm_ptr->N_NANO_SECS) / 1000000000;//todo: assicurarmi che vada bene gestire le giornate lavorative come se durassero un'intera giornata (scrivere una mail )
     int nsecs_for_a_day = (1440 * config_shm_ptr->N_NANO_SECS) % 1000000000;
     ts.tv_sec=secs_for_a_day;
     ts.tv_nsec=nsecs_for_a_day;
@@ -283,22 +293,25 @@ int main (int argc, char *argv[]){
 
     for (int days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
         __debug__print_todays_seats_service();
-
+        //todo: TOTEST
         wait_to_all_childs_be_ready();//todo: cambiare childs in childrens (in questo momento non funzional il refactor porco dio )
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
-
         nanosleep(&ts, NULL);
-
+        //todo: TOTEST
         notify_day_ended();
+        //todo: TOTEST
         randomize_seats_service();
+        //todo: TOTEST
         reset_resources();
         //todo: aggiungere lettura analytics dove necessario
-
+        //read_and_print_analytics(); //todo:impolementare
         printf("[DEBUG] Giorno %d terminato.\n", days_passed);
     }
         printf("[DEBUG] Simulazione terminata.\n");
 
+    //todo: TOTEST
     term_childrens();
+    //todo: TOTEST
     free_memory();
 
 

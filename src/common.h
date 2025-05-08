@@ -42,12 +42,15 @@ typedef struct {
     int average_time;
 } Service;
 
-//todo: TIcket è stato cambiato rispetto all progetto x gennaio, andreanno cambiate un po' di robe nell'utilizzo
-//todo: il cambiamento principale sta nel fatto che prima il ticket veniva usato dallo user, adesso viene mandato direttamente al worker
+//todo: TIcket potrebbe venire stato cambiato rispetto all progetto x gennaio, andreanno cambiate un po' di robe nell'utilizzo se decidiamo di cambiarlo
+//todo: il cambiamento principale starebbe nel fatto che prima il ticket veniva usato dallo user, adesso viene mandato direttamente al worker
 typedef struct {
     int ticket_id;                 // ID univoco del ticket
     int user_id;                   // ID dell'utente
     int service_type;             // Tipo di servizio richiesto (es. 0 = anagrafe, 1 = tributi, ecc.)
+    int actual_time;//old ver.
+    int seat_index;//old ver.
+    int is_done; //old ver
 
     struct timespec request_time; // Quando l'utente ha richiesto il servizio
     struct timespec start_time;   // Quando l’operatore ha iniziato a servire l’utente
@@ -56,7 +59,7 @@ typedef struct {
     int served;                   // 1 = servito, 0 = non servito
     int day_number;               // Giorno della simulazione (1, 2, ..., SIM_DURATION)
 
-    int desk_id;                  // ID dello sportello dove è stato servito (se servito)
+    int des_id;                  // ID dello sportello dove è stato servito (se servito)
     int operator_id;              // ID dell’operatore che ha servito (se servito)
 
 }Ticket;
