@@ -8,12 +8,13 @@
 #include <time.h>
 
 //IPC keys
-#define KEY_TICKET_MGQ (0x11111111)
-#define KEY_SEAT_STATUS_MGQ (0x11111110)
+#define KEY_TICKET_REQUEST_MGQ (0x11111111)
+#define KEY_TICKET_EMANATION_MGQ (0x11111110)
+#define KEY_SEAT_STATUS_MGQ (0x11111101)
 #define KEY_WORKERS_SEAT_SEM (0x22222222)
 #define KEY_USERS_SEAT_SEM (0x22222220)
-#define KEY_SYNC_START_SEM (0x22222200)
-#define KEY_SYNC_CHILDREN_START_SEM (0x22222000)
+#define KEY_SYNC_START_SEM (0x22222202)
+#define KEY_SYNC_CHILDREN_START_SEM (0x22222200)
 #define KEY_SEATS_SHM (0x33333333)
 #define KEY_CONFIG_SHM (0x33333330)
 
@@ -22,8 +23,9 @@
 #define ENDEDDAY (SIGUSR1)
 #define SECS_FOR_A_DAY (1440 * config_shm_ptr->N_NANO_SECS / 1000000000)
 #define NSECS_FOR_A_DAY ((1440 * config_shm_ptr->N_NANO_SECS) % 1000000000)
-#define LINE_BUFFER_SIZE 1024
-//TODO: #define P_BREAK
+#define LINE_BUFFER_SIZE (1024)
+#define P_BREAK (10) //probabilità 1/10 todo: così è gestita in modo brutto, sistemare o nascondere questa macro
+
 
 
 //TypeDefs
@@ -71,14 +73,18 @@ typedef struct {
     Ticket ticket;
 }Ticket_request_message;
 
-//todo: ticket_emanation_message, Sembuf,
+typedef struct{
+    long mtype;//0 richiesta, 1 erogato
+    Ticket ticket;
+}Ticket_emanation_message;
+//todo: Sembuf,
 
 
 typedef struct {
     ServiceType service_type;
     int worker_sem_id;
     int user_sem_id;
-    //ho rimosso ticket_emanation_msg_id perché l'operatore adesso ha già il ticket
+    int ticket_emanation_msg_id;
 }Seat;
 
 typedef struct{

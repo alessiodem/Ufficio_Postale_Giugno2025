@@ -18,7 +18,8 @@ int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
 sigjmp_buf jump_buffer;
 
-int ticket_mgq_id;
+int ticket_request_mgq_id;
+int ticket_emanation_mgq_id;
 Ticket_request_message tmsg;
 int ticket_index = 0;
 //todo: testare se la linea sotto è corretta (sono stanco scusa del todo stupido)
@@ -70,9 +71,14 @@ void setup_ipcs() {
         perror("[ERROR] semget() per children_go_sync_sem_id fallito");
         exit(EXIT_FAILURE);
     }
-    ticket_mgq_id = msgget(KEY_TICKET_MGQ, 0666);
-    if (ticket_mgq_id == -1) {
+    ticket_request_mgq_id = msgget(KEY_TICKET_REQUEST_MGQ, 0666);
+    if (ticket_request_mgq_id == -1) {
         perror("[ERROR] msgget() per ticket_msg_id fallito");
+        exit(EXIT_FAILURE);
+    }
+    ticket_emanation_mgq_id = msgget(KEY_TICKET_EMANATION_MGQ, 0666);
+    if (ticket_request_mgq_id == -1) {
+        perror("[ERROR] msgget() per ticket_msg_emanation_id fallito");
         exit(EXIT_FAILURE);
     }
     //todo: controllare se config_shm_id e  seats_shm_id sono necessari (scusa per il todo studido, sono sotanco)
@@ -156,9 +162,10 @@ int main(int argc, char *argv[]) {
     semaphore_increment(children_ready_sync_sem_id);
     semaphore_do(children_go_sync_sem_id, 0);
     printf("[DEBUG] Ticket Dispenser: Sincronizzazione completata, inizio ciclo di lavoro\n");
+
     while (1) {
         printf("[DEBUG] Ticket Dispenser: In attesa di richiesta ticket\n");
-        if (msgrcv(ticket_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0, IPC_NOWAIT) == -1) {
+        if (msgrcv(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0, IPC_NOWAIT) == -1) {
             if (errno == ENOMSG) {
                 usleep(100000);  // Attendi 100ms prima di riprovare
                 continue;
@@ -175,7 +182,7 @@ int main(int argc, char *argv[]) {
 
         printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d\n",
               tmsg.ticket.ticket_id, tmsg.requiring_user);
-        msgsnd(ticket_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0);
+        msgsnd(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0);
         printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
     }
     return 0;

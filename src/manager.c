@@ -6,6 +6,8 @@
 #include <sys/shm.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/msg.h>
+
 #include "common.h"
 #include "sem_handling.h"
 #include "utils.h"
@@ -20,6 +22,8 @@ pid_t *child_pids = NULL;
 //IPCs
 int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
+int ticket_request_msg_id;
+int ticket_emanation_msg_id;
 
 //PROTOTIPI FUNZIONI
 
@@ -73,6 +77,7 @@ void __debug__print_todays_seats_service(){
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void setup_ipcs() {
     //todo: aggiungere passo passo le inizializzazioni che servono
+    //l'inizializzazione di config_shm_ptr è nella funzione setup_config() perché sevre inizializzarla prima di cricare la configurazione
     children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, EXCLUSIVE_CREATE_FLAG);
     if (children_ready_sync_sem_id == -1) {
         perror("Errore nella creazione del semaforo di sincronizzazione per i figli");
@@ -91,12 +96,37 @@ void setup_ipcs() {
         perror("Errore nella creazione della memoria condivisa per i posti");
         exit(EXIT_FAILURE);
     }
-    seats_shm_ptr = shmat(seats_shm_id, NULL, 0);
+    seats_shm_ptr = shmat(seats_shm_id, NULL, EXCLUSIVE_CREATE_FLAG);
     if (seats_shm_ptr == (void *)-1) {
         perror("[ERROR] shmat() per seats_shm fallito");
         exit(EXIT_FAILURE);
     }
+    ticket_request_msg_id = msgget(KEY_TICKET_REQUEST_MGQ, EXCLUSIVE_CREATE_FLAG);
+    if (ticket_request_msg_id == -1) {
+        perror("Errore nella creazione della message queue per i ticket");
+        exit(EXIT_FAILURE);
+    }
+    ticket_emanation_msg_id = msgget(KEY_TICKET_EMANATION_MGQ, EXCLUSIVE_CREATE_FLAG);
+    if (ticket_emanation_msg_id == -1) {
+        perror("Errore nella creazione della message queue per i ticket");
+        exit(EXIT_FAILURE);
+    }
 }
+
+void setup_config(){
+
+    int config_shm_id = shmget(KEY_CONFIG_SHM, sizeof(Config), EXCLUSIVE_CREATE_FLAG);
+    if (config_shm_id == -1) {
+        perror("Errore nella creazione della memoria condivisa per la configurazione");
+        exit(EXIT_FAILURE);
+    }
+    config_shm_ptr = shmat(config_shm_id, NULL, 0);
+    if (config_shm_ptr == (void *) -1) {
+        perror("Errore nell'aggancio della memoria condivisa per la configurazione");
+        exit(EXIT_FAILURE);
+    }
+}
+
 void load_config(FILE *config_file) {
     int incorrect_config = 0;
     int read_lines = 0;
@@ -201,6 +231,8 @@ void randomize_seats_service(){
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++)
         seats_shm_ptr[i].service_type=get_random_service_type();
 }
+
+
 //FUNZIONI DI FLOW PRINCIPALE
 void wait_to_all_childs_be_ready(){
 
@@ -273,6 +305,7 @@ int main (int argc, char *argv[]){
     //todo: discutere sui commenti sopra
     //sezione: lettura argomenti
     //todo: TOTEST
+    setup_config();
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <config_file_path>\n", argv[0]);//todo: cambiare messaggio di errore
         exit(EXIT_FAILURE);
