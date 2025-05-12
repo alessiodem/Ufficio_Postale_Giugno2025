@@ -28,8 +28,6 @@ int ticket_emanation_msg_id;
 //PROTOTIPI FUNZIONI
 
 //FUNZIONI  AUSILIARIE
-//todo: LA FUNZIONE SOTTO potrebbe ESSERE SEMPLIFICATA ESSENDO CHE CONOSCIAMO APRIORI IL NUMERO DEI FIGLI TOTALI, unico prolema è che dobbiamo prma leggere le conf quindi non possiamo inizializzare l'array con la dimensione, si può  fare ma già così worka bene
-//
 // Funzione per aggiungere un PID alla lista dinamica
 void add_child_pid(pid_t child_pid) {
     //printf("[DEBUG] Aggiunta del PID %d alla lista dei figli...\n", child_pid);
@@ -76,7 +74,6 @@ void __debug__print_todays_seats_service(){
 
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void setup_ipcs() {
-    //todo: aggiungere passo passo le inizializzazioni che servono
     //l'inizializzazione di config_shm_ptr è nella funzione setup_config() perché sevre inizializzarla prima di cricare la configurazione
     children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, EXCLUSIVE_CREATE_FLAG);
     if (children_ready_sync_sem_id == -1) {
@@ -91,6 +88,7 @@ void setup_ipcs() {
         exit(EXIT_FAILURE);
     }else
         semctl(children_go_sync_sem_id, 0, SETVAL, 1);//todo: capire se va controllato il ritorno della funzione
+
     int seats_shm_id = shmget(KEY_SEATS_SHM, sizeof(Seat) * config_shm_ptr->NOF_WORKER_SEATS, EXCLUSIVE_CREATE_FLAG);
     if (seats_shm_id == -1) {
         perror("Errore nella creazione della memoria condivisa per i posti");
@@ -167,8 +165,8 @@ void load_config(FILE *config_file) {
 
 //todo: test
 void compute_daytime(){
-    int secs_for_a_day = (1440 * config_shm_ptr->N_NANO_SECS) / 1000000000;//todo: assicurarmi che vada bene gestire le giornate lavorative come se durassero un'intera giornata (scrivere una mail )
-    int nsecs_for_a_day = (1440 * config_shm_ptr->N_NANO_SECS) % 1000000000;
+    int secs_for_a_day = (480 * config_shm_ptr->N_NANO_SECS) / 1000000000;
+    int nsecs_for_a_day = (480 * config_shm_ptr->N_NANO_SECS) % 1000000000;
     ts.tv_sec=secs_for_a_day;
     ts.tv_nsec=nsecs_for_a_day;
 }
@@ -234,7 +232,7 @@ void randomize_seats_service(){
 
 
 //FUNZIONI DI FLOW PRINCIPALE
-void wait_to_all_childs_be_ready(){
+void wait_to_all_children_be_ready(){
 
     printf("[DEBUG] Direttore: aspetto che i figli siano pronti. \n");
     semaphore_do(children_ready_sync_sem_id, -no_children);
@@ -250,10 +248,13 @@ void notify_day_ended(){
         kill(child_pids[i], ENDEDDAY);
     //todo: contare gli utenti  ancora in coda per l'explode threshld
     //potrebbe non essere il punto giusto per il todo sopra.
+    // da implementare quando sappiamo come sono gestite le erogazioni
 }
 
 //FUNZIONI DI PULIZIA
 void reset_resources(){
+    //todo: pulirelr sltre risorse
+
     // Reset dei semafori
     if (semctl(children_ready_sync_sem_id, 0, SETVAL, 0) == -1) {
         perror("[ERRORE]Errore nel reset del semaforo children_ready_sync_sem_id");
@@ -269,23 +270,43 @@ void reset_resources(){
 
 }
 void free_memory() {
-
+    // Libera memoria allocata dinamicamente
     free(child_pids);
 
+    // Distacco dalle memorie condivise
     shmdt(config_shm_ptr);
     shmdt(seats_shm_ptr);
 
-    semctl(children_ready_sync_sem_id, 0, IPC_RMID);//TODO: controllare se vengono effettivamente deallocate (IPC_RMID non rimuove, le marchia come removibili everranno rimosse quanod luntimo processo si stacca da loro)
+    // Rimozione semafori di sincronizzazione
+    semctl(children_ready_sync_sem_id, 0, IPC_RMID);
     semctl(children_go_sync_sem_id, 0, IPC_RMID);
 
-    //semafori degli sportelli
+    // Rimozione delle message queue
+    msgctl(ticket_request_msg_id, IPC_RMID, NULL);
+    msgctl(ticket_emanation_msg_id, IPC_RMID, NULL);
+
+    // Rimozione delle memorie condivise
+    int config_shm_id = shmget(KEY_CONFIG_SHM, sizeof(Config), 0666);
+    if (config_shm_id != -1) {
+        shmctl(config_shm_id, IPC_RMID, NULL);
+    }
+
+    int seats_shm_id = shmget(KEY_SEATS_SHM, sizeof(Seat) * config_shm_ptr->NOF_WORKER_SEATS, 0666);
+    if (seats_shm_id != -1) {
+        shmctl(seats_shm_id, IPC_RMID, NULL);
+    }
+
+    // Rimozione dei semafori degli sportelli
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         semctl(seats_shm_ptr[i].worker_sem_id, 0, IPC_RMID);
         semctl(seats_shm_ptr[i].user_sem_id, 0, IPC_RMID);
     }
+
+    printf("[DEBUG] Risorse IPC deallocate correttamente\n");
 }
 
-void term_childrens() {
+
+void term_children() {
     printf("[DEBUG] Terminazione della simulazione: terminazione di tutti i processi figli...\n");
     for (int i = 0; i < no_children; i++) {
         if (kill(child_pids[i], SIGTERM) == -1) {
@@ -327,7 +348,7 @@ int main (int argc, char *argv[]){
     for (int days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
         __debug__print_todays_seats_service();
         //todo: TOTEST
-        wait_to_all_childs_be_ready();//todo: cambiare childs in childrens (in questo momento non funzional il refactor porco dio )
+        wait_to_all_children_be_ready();
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
         nanosleep(&ts, NULL);
         //todo: TOTEST
@@ -337,13 +358,13 @@ int main (int argc, char *argv[]){
         //todo: TOTEST
         reset_resources();
         //todo: aggiungere lettura analytics dove necessario
-        //read_and_print_analytics(); //todo:impolementare
+        //read_and_print_analytics(); //todo:impolementare dopo che abbiamo la gestione delle erogazioni
         printf("[DEBUG] Giorno %d terminato.\n", days_passed);
     }
         printf("[DEBUG] Simulazione terminata.\n");
 
     //todo: TOTEST
-    term_childrens();
+    term_children();
     //todo: TOTEST
     free_memory();
 

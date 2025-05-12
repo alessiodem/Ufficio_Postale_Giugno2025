@@ -21,8 +21,8 @@
 //Macro
 #define EXCLUSIVE_CREATE_FLAG (0666|IPC_CREAT|IPC_EXCL)
 #define ENDEDDAY (SIGUSR1)
-#define SECS_FOR_A_DAY (1440 * config_shm_ptr->N_NANO_SECS / 1000000000)
-#define NSECS_FOR_A_DAY ((1440 * config_shm_ptr->N_NANO_SECS) % 1000000000)
+#define SECS_FOR_A_DAY (480 * config_shm_ptr->N_NANO_SECS / 1000000000)
+#define NSECS_FOR_A_DAY ((480 * config_shm_ptr->N_NANO_SECS) % 1000000000)
 #define LINE_BUFFER_SIZE (1024)
 #define P_BREAK (10) //probabilità 1/10 todo: così è gestita in modo brutto, sistemare o nascondere questa macro
 
@@ -55,7 +55,7 @@ typedef struct {
     int is_done; //old ver
 
     struct timespec request_time; // Quando l'utente ha richiesto il servizio
-    struct timespec start_time;   // Quando l’operatore ha iniziato a servire l’utente
+    // struct timespec start_time;// Quando l’operatore ha iniziato a servire l’utente
     struct timespec end_time;     // Quando il servizio è stato completato
 
     int served;                   // 1 = servito, 0 = non servito
@@ -77,7 +77,7 @@ typedef struct{
     long mtype;//0 richiesta, 1 erogato
     Ticket ticket;
 }Ticket_emanation_message;
-//todo: Sembuf,
+//todo (se serve): Sembuf,
 
 
 typedef struct {

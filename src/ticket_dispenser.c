@@ -22,7 +22,6 @@ int ticket_request_mgq_id;
 int ticket_emanation_mgq_id;
 Ticket_request_message tmsg;
 int ticket_index = 0;
-//todo: testare se la linea sotto è corretta (sono stanco scusa del todo stupido)
 int seat_finder_index=0;
 Seat *seats_shm_ptr;
 Config *config_shm_ptr;
@@ -40,23 +39,26 @@ void handle_sig(int sig) {
         siglongjmp(jump_buffer, 1);  // Salta all'inizio del ciclo
     }
     else if (sig == SIGTERM) {
-        //todo: potrebbe esserci bisogno id altro(come fflush(stdout), da vedere bene
+        //todo: potrebbe esserci bisogno id altro(come fflush(stdout), non mi sebra serva ma se qualcosa non funziona potrebbe essere per la sua assenza
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         exit(0);
     }
 }
 void initSigAction() {
-    struct sigaction term_action;
-    term_action.sa_handler = handle_sig;
-    sigemptyset(&term_action.sa_mask);
-    term_action.sa_flags = 0;
-    sigaction(SIGTERM, &term_action, NULL);
-    //todo: capire se posso unire sigaction in uno solo
     struct sigaction sa;
     sa.sa_handler = handle_sig;
+    sigemptyset(&sa.sa_mask);  // Nessun segnale bloccato durante l'esecuzione dell'handler
     sa.sa_flags = 0;
-    sigemptyset(&sa.sa_mask);    // Blocca solo SIGALRM durante l'esecuzione dell'handler
 
+    if (sigaction(SIGTERM, &sa, NULL) == -1) {
+        perror("Errore sigaction SIGTERM");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sigaction(ENDEDDAY, &sa, NULL) == -1) {
+        perror("Errore sigaction ENDEDDAY");
+        exit(EXIT_FAILURE);
+    }
 }
 void setup_ipcs() {
     printf("[DEBUG] Inizializzazione IPC\n");
@@ -105,6 +107,12 @@ void setup_ipcs() {
 }
 
 //FUNZIONI DI FLOW PRINCIPALE
+void set_ready() {
+    printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
+    semaphore_increment(children_ready_sync_sem_id);
+    semaphore_do(children_go_sync_sem_id, 0);
+    printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
+}
 int generate_random_time(int average_time) {
     printf("[DEBUG] Ticket Dispenser: Generazione tempo casuale. Media: %d\n", average_time);
     int max_variation = average_time / 2;
@@ -113,9 +121,9 @@ int generate_random_time(int average_time) {
     int result = actual_time > 0 ? actual_time : 1;
     printf("[DEBUG] Ticket Dispenser: Tempo generato: %d\n", result);
     return result;
-    // todo: controllare bene che il tempo da aspettare come int funzioni bene
 }
-//todo: trovare un modo migliore rispetto a questo
+
+//todo: potremmo trovare un modo migliore rispetto a questo
 int find_a_seat_index(ServiceType service_type) {
     printf("[DEBUG] Ticket Dispenser: Ricerca posto per servizio tipo %d\n", service_type);
     while (1) {
@@ -139,7 +147,7 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number) {
     Ticket ticket = {
         .ticket_id = ticket_number,
         .service_type = service_type,
-        .actual_time = generate_random_time(average_time),//todo: non è un todo ma ricordare che è gestito come fossero secondi reali (quindi da un int), quando il servizio deve essere erogato bisogna tradurre i secondi reali in secondi della simulazione
+        .actual_time = generate_random_time(average_time),
         .seat_index = find_a_seat_index(service_type),//todo:  queste funzioni potrebbero dare il problema di eccessiva roba nello stack di chiamate, capire se effettivamente è un problema
         .is_done = 0
     };
@@ -152,16 +160,13 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number) {
 //MAIN
 
 int main(int argc, char *argv[]) {
+
     initSigAction();
     printf("[DEBUG] Ticket Dispenser: Avvio processo\n");
     setup_ipcs();
-
     sigsetjmp(jump_buffer, 1);
 
-    printf("[DEBUG] Ticket Dispenser: Attesa sincronizzazione processi\n");
-    semaphore_increment(children_ready_sync_sem_id);
-    semaphore_do(children_go_sync_sem_id, 0);
-    printf("[DEBUG] Ticket Dispenser: Sincronizzazione completata, inizio ciclo di lavoro\n");
+    set_ready();
 
     while (1) {
         printf("[DEBUG] Ticket Dispenser: In attesa di richiesta ticket\n");

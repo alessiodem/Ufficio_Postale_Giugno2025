@@ -44,16 +44,20 @@ void handle_sig(int sig) {
     }
 }
 void setup_sigaction(){
-    struct sigaction term_action;
-    term_action.sa_handler = handle_sig;
-    sigemptyset(&term_action.sa_mask);
-    term_action.sa_flags = 0;
-    sigaction(SIGTERM, &term_action, NULL);
-    //todo: capire se posso unire sigaction in uno solo
     struct sigaction sa;
     sa.sa_handler = handle_sig;
+    sigemptyset(&sa.sa_mask);  // Nessun segnale bloccato durante l'esecuzione dell'handler
     sa.sa_flags = 0;
-    sigemptyset(&sa.sa_mask);    // Blocca solo SIGALRM durante l'esecuzione dell'handler
+
+    if (sigaction(SIGTERM, &sa, NULL) == -1) {
+        perror("Errore sigaction SIGTERM");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sigaction(ENDEDDAY, &sa, NULL) == -1) {
+        perror("Errore sigaction ENDEDDAY");
+        exit(EXIT_FAILURE);
+    }
 }
 void setup_ipcs() {
     printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
@@ -102,10 +106,14 @@ void setup_ipcs() {
 
 //FUNZIONI DI FLOW PRINCIPALE
 void set_ready() {
-    printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
+    printf("[DEBUG] Operatore %d: Sono pronto per la nuova giornata\n", getpid());
     semaphore_increment(children_ready_sync_sem_id);
     semaphore_do(children_go_sync_sem_id, 0);
-    printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
+    printf("[DEBUG] Operatore %d: Sto iniziando una nuova giornata\n", getpid());
+}
+void go_on_break() {
+    printf("[DEBUG] Operatore %d: Vado in pausa\n", getpid());
+    pause(); // aspetta la fine della giornata ENDDAY o della simulazione
 }
 
 int main () {
@@ -115,21 +123,21 @@ int main () {
     service_type = get_random_service_type();
     sigsetjmp(jump_buffer, 1);
     invalid_ticket.ticket_id = -1;
+
     set_ready();
-    for (int i=0; i<config_shm_ptr->NOF_WORKER_SEATS; i++) {
-        if (seats_shm_ptr[i].service_type == service_type &&
-                semaphore_do_not_wait(seats_shm_ptr[i].worker_sem_id, -1) == 0) {
-            printf("[DEBUG] Worker %d: Trovato posto libero %d\n", getpid(), i);
-            current_seat = seats_shm_ptr[i];
+    while (1) {
+        for (int i=0; i<config_shm_ptr->NOF_WORKER_SEATS; i++) {
+            if (seats_shm_ptr[i].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[i].worker_sem_id, -1) == 0) {
+                printf("[DEBUG] Worker %d: Trovato posto libero %d\n", getpid(), i);
+                current_seat = seats_shm_ptr[i];
 
-            while (!in_break) {//todo potrebbe essere sostituito con una funzxione simile alla go_home di user
                 printf("[DEBUG] Worker %d: In attesa di clienti \n", getpid());
-
                 if (semaphore_do(current_seat.user_sem_id, 0) == 0) {
-                    printf("[DEBUG] Worker %d: Cliente arrivato, attendo ticket\n", getpid());
 
+                    printf("[DEBUG] Worker %d: Cliente arrivato, attendo ticket\n", getpid());
                     Ticket_emanation_message tem;
                     msgrcv(current_seat.ticket_emanation_msg_id,&tem,sizeof(tem)-sizeof(long),0,0);
+
                     printf("[DEBUG] Worker %d: Inizio servizio, durata: %d\n", getpid(), current_ticket.actual_time);
                     sleep(current_ticket.actual_time);
                     tem.mtype=1;
@@ -137,8 +145,8 @@ int main () {
 
                     //clock_gettime(CLOCK_MONOTONIC, &current_seat.current_ticket.time_service_done);
                     printf("[DEBUG] Worker %d: Servizio completato\n", getpid());
-
                     current_ticket = invalid_ticket;
+                    semaphore_do(current_seat.user_sem_id, 1);
 
                     if (aviable_breaks > 0) {
                         in_break = rand() % P_BREAK == 0;
@@ -146,13 +154,22 @@ int main () {
                         if (in_break == 1) {
                             aviable_breaks--;
                             printf("[DEBUG] Worker %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
+                            go_on_break();
+                        }
+                        else {
+                            printf("[DEBUG] Worker %d: NON vado in pausa\n", getpid());
                         }
                     }
                 }
+
+                pause(); // aspetta la fine della giornata ENDDAY o della simulazione
+                printf("[DEBUG] Worker %d: Processo terminato in modo inaspettato\n", getpid());
+                return 0;
             }
-            pause(); // aspetta la fine della giornata ENDDAY o della simulazione
-            printf("[DEBUG] Worker %d: Processo terminato in modo inaspettato\n", getpid());
-            return 0;
+
+            if (i==config_shm_ptr->NOF_WORKER_SEATS)
+                i=0;
+
         }
     }
 

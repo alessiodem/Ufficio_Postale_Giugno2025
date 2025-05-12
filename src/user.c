@@ -39,16 +39,20 @@ void handle_sig(int sig) {
     }
 }
 void setup_sigaction(){
-    struct sigaction term_action;
-    term_action.sa_handler = handle_sig;
-    sigemptyset(&term_action.sa_mask);
-    term_action.sa_flags = 0;
-    sigaction(SIGTERM, &term_action, NULL);
-    //todo: capire se posso unire sigaction in uno solo
     struct sigaction sa;
     sa.sa_handler = handle_sig;
+    sigemptyset(&sa.sa_mask);  // Nessun segnale bloccato durante l'esecuzione dell'handler
     sa.sa_flags = 0;
-    sigemptyset(&sa.sa_mask);    // Blocca solo SIGALRM durante l'esecuzione dell'handler
+
+    if (sigaction(SIGTERM, &sa, NULL) == -1) {
+        perror("Errore sigaction SIGTERM");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sigaction(ENDEDDAY, &sa, NULL) == -1) {
+        perror("Errore sigaction ENDEDDAY");
+        exit(EXIT_FAILURE);
+    }
 }
 void setup_ipcs() {
     printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
@@ -148,7 +152,7 @@ int main(int argc, char *argv[]) {
             printf("[DEBUG] Utente %d: Servizio disponibile, calcolo tempo di attesa\n", getpid());
 
         ///RICHIEDE IL TICKET
-        //TODO: rivedere la '''funzione''' sotto con la nuova versione di Ticket
+        //TODO: rivedere la '''funzione''' sotto con la nuova versione di Ticket quando definiremo i Ticket
         // get_ticket(ServiceType service_type)
             printf("[DEBUG] Utente %d: Richiedo ticket per servizio tipo %d\n", getpid(), service_type);
             Ticket_request_message req;
