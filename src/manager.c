@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,6 +7,7 @@
 #include <sys/shm.h>
 #include <time.h>
 #include <unistd.h>
+#include <asm-generic/errno.h>
 #include <sys/msg.h>
 
 #include "common.h"
@@ -13,13 +15,13 @@
 #include "utils.h"
 
 //VARIABILI GLOBALI
-Config *config_shm_ptr;
 struct timespec ts;
-Seat *seats_shm_ptr;
 int no_children = 0;
 pid_t *child_pids = NULL;
 
 //IPCs
+Config *config_shm_ptr;
+Seat *seats_shm_ptr;
 int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
 int ticket_request_msg_id;
@@ -255,17 +257,24 @@ void notify_day_ended(){
 void reset_resources(){
     //todo: pulirelr sltre risorse
 
-    // Reset dei semafori
+    // Reset dei semafori di sincronizzazione
     if (semctl(children_ready_sync_sem_id, 0, SETVAL, 0) == -1) {
-        perror("[ERRORE]Errore nel reset del semaforo children_ready_sync_sem_id");
-    } else {
-        //printf("[DEBUG]Semaforo children_ready_sync_sem_id resettato a %d\n", children_ready_sync_sem_id);
+        perror("[ERRORE] Errore nel reset del semaforo children_ready_sync_sem_id");
     }
 
     if (semctl(children_go_sync_sem_id, 0, SETVAL, 1) == -1) {
-        perror("[ERRORE]Errore nel reset del semaforo children_go_sync_sem_id");
-    } else {
-        //printf("[DEBUG]Semaforo children_go_sync_sem_id resettato a %d\n", children_go_sync_sem_id);
+        perror("[ERRORE] Errore nel reset del semaforo children_go_sync_sem_id");
+    }
+    Ticket_request_message trm;
+    // Pulizia dei messaggi presenti nelle message queue
+    while (msgrcv(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), 0, IPC_NOWAIT) != -1);
+    if (errno != ENOMSG) {
+        perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
+    }
+    Ticket_emanation_message tem;
+    while (msgrcv(ticket_emanation_msg_id, &tem, sizeof(tem)-sizeof(tem.mtype), 0, IPC_NOWAIT) != -1);
+    if (errno != ENOMSG) {
+        perror("[ERRORE] Errore nello svuotamento della message queue ticket_emanation_msg_id");
     }
 
 }
@@ -301,6 +310,7 @@ void free_memory() {
         semctl(seats_shm_ptr[i].worker_sem_id, 0, IPC_RMID);
         semctl(seats_shm_ptr[i].user_sem_id, 0, IPC_RMID);
     }
+    //todo: deallocare i semafori nei seats
 
     printf("[DEBUG] Risorse IPC deallocate correttamente\n");
 }

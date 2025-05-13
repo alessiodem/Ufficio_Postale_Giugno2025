@@ -125,6 +125,7 @@ int main () {
     invalid_ticket.ticket_id = -1;
 
     set_ready();
+
     while (1) {
         for (int i=0; i<config_shm_ptr->NOF_WORKER_SEATS; i++) {
             if (seats_shm_ptr[i].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[i].worker_sem_id, -1) == 0) {

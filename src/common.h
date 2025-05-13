@@ -100,6 +100,6 @@ typedef struct{
 
 //Analytic_tools non dovrebbe più essere necessario, forse va trovato un modo per contare le analytic: 12,13,14,15
 //MA, se vogliamo contare un operatore attivo se ha erogato almeno un ticket basta aggiungere un attibuto nel ticket che dice quale operatore ha erogato quel ticket e 12, 13 e 15 vengono risolti in quel modo
-//
+
 
 #endif //COMMON_H
