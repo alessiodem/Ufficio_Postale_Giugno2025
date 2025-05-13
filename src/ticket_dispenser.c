@@ -19,7 +19,6 @@ int children_go_sync_sem_id;
 sigjmp_buf jump_buffer;
 
 int ticket_request_mgq_id;
-int ticket_emanation_mgq_id;//todo: rimuovere ticket_emanation_mgq e tutto ciò che lo riguarda se ticket_tbe_mgq funziona
 int tickets_tbe_mgq_id;//tbe= to be erogated
 Ticket_request_message tmsg;
 int ticket_index = 0;

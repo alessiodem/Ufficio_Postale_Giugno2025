@@ -18,7 +18,6 @@ sigjmp_buf jump_buffer;
 Seat *seats_shm_ptr;
 Config *config_shm_ptr;
 int ticket_request_msg_id;
-int ticket_emanation_msg_id;
 
 #define MSG_SIZE (sizeof(req) - sizeof(long))
 
@@ -78,10 +77,6 @@ void setup_ipcs() {
     }
     if ((ticket_request_msg_id = msgget(KEY_TICKET_REQUEST_MGQ, 0666)) == -1) {
         perror("Errore msgget KEY_TICKET_REQUEST_MGQ");
-        exit(EXIT_FAILURE);
-    }
-    if ((ticket_emanation_msg_id = msgget(KEY_TICKET_EMANATION_MGQ, 0666)) == -1) {
-        perror("Errore msgget KEY_TICKET_EMANATION_MGQ");
         exit(EXIT_FAILURE);
     }
 

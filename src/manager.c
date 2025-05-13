@@ -25,7 +25,6 @@ Seat *seats_shm_ptr;
 int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
 int ticket_request_msg_id;
-int ticket_emanation_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
 
 //PROTOTIPI FUNZIONI
@@ -104,11 +103,6 @@ void setup_ipcs() {
     }
     ticket_request_msg_id = msgget(KEY_TICKET_REQUEST_MGQ, EXCLUSIVE_CREATE_FLAG);
     if (ticket_request_msg_id == -1) {
-        perror("Errore nella creazione della message queue per i ticket");
-        exit(EXIT_FAILURE);
-    }
-    ticket_emanation_msg_id = msgget(KEY_TICKET_EMANATION_MGQ, EXCLUSIVE_CREATE_FLAG);
-    if (ticket_emanation_msg_id == -1) {
         perror("Errore nella creazione della message queue per i ticket");
         exit(EXIT_FAILURE);
     }
@@ -276,11 +270,6 @@ void reset_resources(){
     if (errno != ENOMSG) {
         perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
     }
-    Ticket_emanation_message tem;
-    while (msgrcv(ticket_emanation_msg_id, &tem, sizeof(tem)-sizeof(tem.mtype), 0, IPC_NOWAIT) != -1);
-    if (errno != ENOMSG) {
-        perror("[ERRORE] Errore nello svuotamento della message queue ticket_emanation_msg_id");
-    }
     //todo: svuotare tickets_tbe_mgq
 
 }
@@ -298,7 +287,6 @@ void free_memory() {
 
     // Rimozione delle message queue
     msgctl(ticket_request_msg_id, IPC_RMID, NULL);
-    msgctl(ticket_emanation_msg_id, IPC_RMID, NULL);
     msgctl(tickets_tbe_mgq_id, IPC_RMID, NULL);
 
     // Rimozione delle memorie condivise

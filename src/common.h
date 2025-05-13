@@ -88,7 +88,6 @@ typedef struct{
 typedef struct {
     ServiceType service_type;
     int worker_sem_id;
-    int ticket_emanation_msg_id;
 }Seat;
 
 typedef struct{
