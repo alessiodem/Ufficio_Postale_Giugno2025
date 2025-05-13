@@ -161,29 +161,8 @@ int main(int argc, char *argv[]) {
             req.service_type = service_type;
             msgsnd(ticket_request_msg_id, &req, MSG_SIZE, 0);
 
-            Ticket_request_message res;
-            msgrcv(ticket_request_msg_id, &res, MSG_SIZE, 1, 0);
-            printf("[DEBUG] Utente %d: Ticket ricevuto\n", getpid());
+            while (req.ticket.is_done==0)//todo: ottimizzare questa attesa (si potrebbe passare il comando al prossimo processo all'interno del while)
 
-            Ticket ticket = res.ticket;
-            //----
-            //print_ticket_debug(ticket);
-            printf("[DEBUG] Utente %d: Ticket ottenuto, procedo con il servizio\n", getpid());
-
-            //RICHIEDE L'EROGAZIONE DEL TICKET
-
-            printf("[DEBUG] Utente %d: Inizio servizio\n", getpid());
-            semaphore_decrement(seats_shm_ptr[ticket.seat_index].user_sem_id);
-
-            Ticket_emanation_message tem;
-            tem.mtype = 0;
-            tem.ticket = ticket;
-            msgsnd(seats_shm_ptr[ticket.seat_index].ticket_emanation_msg_id, &tem, sizeof(tem) - sizeof(long), 0);
-            printf("[DEBUG] Utente %d: In attesa del completamento del servizio\n", getpid());
-            msgrcv(seats_shm_ptr[ticket.seat_index].ticket_emanation_msg_id, &tem, sizeof(tem) - sizeof(long), 1, 0);
-
-
-            semaphore_increment(seats_shm_ptr[ticket.seat_index].user_sem_id);
             printf("------- Utente %d: Servizio completato-------\n", getpid());
             go_home();
         } else {

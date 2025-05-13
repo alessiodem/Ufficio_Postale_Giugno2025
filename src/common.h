@@ -10,7 +10,8 @@
 //IPC keys
 #define KEY_TICKET_REQUEST_MGQ (0x11111111)
 #define KEY_TICKET_EMANATION_MGQ (0x11111110)
-#define KEY_SEAT_STATUS_MGQ (0x11111101)
+#define KEY_TICKETS_TBE_MGQ (0x11111101)
+#define KEY_SEAT_STATUS_MGQ (0x11111100)
 #define KEY_WORKERS_SEAT_SEM (0x22222222)
 #define KEY_USERS_SEAT_SEM (0x22222220)
 #define KEY_SYNC_START_SEM (0x22222202)
@@ -77,13 +78,16 @@ typedef struct{
     long mtype;//0 richiesta, 1 erogato
     Ticket ticket;
 }Ticket_emanation_message;
+typedef struct{
+    long mtype;//0 richiesta, 1 erogato
+    Ticket ticket;
+}Ticket_tbe_message;
 //todo (se serve): Sembuf,
 
 
 typedef struct {
     ServiceType service_type;
     int worker_sem_id;
-    int user_sem_id;
     int ticket_emanation_msg_id;
 }Seat;
 

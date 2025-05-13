@@ -19,7 +19,8 @@ int children_go_sync_sem_id;
 sigjmp_buf jump_buffer;
 
 int ticket_request_mgq_id;
-int ticket_emanation_mgq_id;
+int ticket_emanation_mgq_id;//todo: rimuovere ticket_emanation_mgq e tutto ciò che lo riguarda se ticket_tbe_mgq funziona
+int tickets_tbe_mgq_id;//tbe= to be erogated
 Ticket_request_message tmsg;
 int ticket_index = 0;
 int seat_finder_index=0;
@@ -79,8 +80,13 @@ void setup_ipcs() {
         exit(EXIT_FAILURE);
     }
     ticket_emanation_mgq_id = msgget(KEY_TICKET_EMANATION_MGQ, 0666);
-    if (ticket_request_mgq_id == -1) {
+    if (ticket_emanation_mgq_id == -1) {
         perror("[ERROR] msgget() per ticket_msg_emanation_id fallito");
+        exit(EXIT_FAILURE);
+    }
+    tickets_tbe_mgq_id = msgget(KEY_TICKETS_TBE_MGQ, 0666);
+    if (tickets_tbe_mgq_id == -1) {
+        perror("[ERROR] msgget() per ticket_tbe_mgq_id fallito");
         exit(EXIT_FAILURE);
     }
     //todo: controllare se config_shm_id e  seats_shm_id sono necessari (scusa per il todo studido, sono sotanco)
@@ -170,25 +176,25 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         printf("[DEBUG] Ticket Dispenser: In attesa di richiesta ticket\n");
-        if (msgrcv(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0, IPC_NOWAIT) == -1) {
-            if (errno == ENOMSG) {
-                usleep(100000);  // Attendi 100ms prima di riprovare
-                continue;
-            } else {
-                perror("[ERROR] msgrcv fallito");
-                break;
-            }
-        }
-        printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
+        msgrcv(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0, 0);
 
+        printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
+        //todo: il codice qui sarebbe più indicato sotto ma il generate ticket ma spostato all'interno di ttbemsg e conseguenti modifiche
         tmsg.ticket = generate_ticket(tmsg.service_type, ticket_index);
         tmsg.mtype = 1;
         ticket_index++;
 
-        printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d\n",
-              tmsg.ticket.ticket_id, tmsg.requiring_user);
+        Ticket_tbe_message ttbemsg;
+        ttbemsg.ticket=tmsg.ticket;
+        ttbemsg.mtype=tmsg.ticket.service_type+1;//+1 perché m_type non può essere 0 ed esistre un service_type=0
+        printf("[DEBUG] Ticket Dispenser: Invio ticket %d alla coda di tickets da erogare \n",tmsg.ticket.ticket_id);
+        msgsnd(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg) - sizeof(long), 0);
+
+        printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d\n", tmsg.ticket.ticket_id, tmsg.requiring_user);
         msgsnd(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0);
         printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
     }
+
+    printf("[DEBUG] Ticket Dispenser %d: Processo terminato in modo inaspettato\n", getpid());
     return 0;
 }

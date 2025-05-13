@@ -26,6 +26,7 @@ int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
 int ticket_request_msg_id;
 int ticket_emanation_msg_id;
+int tickets_tbe_mgq_id;//tbe= to be erogated
 
 //PROTOTIPI FUNZIONI
 
@@ -111,6 +112,11 @@ void setup_ipcs() {
         perror("Errore nella creazione della message queue per i ticket");
         exit(EXIT_FAILURE);
     }
+    tickets_tbe_mgq_id = msgget(KEY_TICKETS_TBE_MGQ, EXCLUSIVE_CREATE_FLAG);
+    if (tickets_tbe_mgq_id == -1) {
+        perror("Errore nella creazione della message queue per i ticket da erogare");
+        exit(EXIT_FAILURE);
+    }
 }
 
 void setup_config(){
@@ -177,7 +183,6 @@ void create_seats() {
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         seats_shm_ptr[i].service_type = get_random_service_type();
         seats_shm_ptr[i].worker_sem_id = create_semaphore_and_setval(IPC_PRIVATE,1,0666|IPC_CREAT,1);//todo: valutare la possibilità di gestire i semafori come array di semafori (viene fatto nativamente cambiando nsems)
-        seats_shm_ptr[i].user_sem_id = create_semaphore_and_setval(IPC_PRIVATE,1,0666|IPC_CREAT,1);//todo: stessa cosa di worker_sem
     }
     printf("[DEBUG] Sportelli creati.\n");
 }
@@ -276,6 +281,7 @@ void reset_resources(){
     if (errno != ENOMSG) {
         perror("[ERRORE] Errore nello svuotamento della message queue ticket_emanation_msg_id");
     }
+    //todo: svuotare tickets_tbe_mgq
 
 }
 void free_memory() {
@@ -293,6 +299,7 @@ void free_memory() {
     // Rimozione delle message queue
     msgctl(ticket_request_msg_id, IPC_RMID, NULL);
     msgctl(ticket_emanation_msg_id, IPC_RMID, NULL);
+    msgctl(tickets_tbe_mgq_id, IPC_RMID, NULL);
 
     // Rimozione delle memorie condivise
     int config_shm_id = shmget(KEY_CONFIG_SHM, sizeof(Config), 0666);
@@ -308,7 +315,6 @@ void free_memory() {
     // Rimozione dei semafori degli sportelli
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         semctl(seats_shm_ptr[i].worker_sem_id, 0, IPC_RMID);
-        semctl(seats_shm_ptr[i].user_sem_id, 0, IPC_RMID);
     }
     //todo: deallocare i semafori nei seats
 
