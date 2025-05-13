@@ -9,7 +9,6 @@
 
 //IPC keys
 #define KEY_TICKET_REQUEST_MGQ (0x11111111)
-#define KEY_TICKET_EMANATION_MGQ (0x11111110)
 #define KEY_TICKETS_TBE_MGQ (0x11111101)
 #define KEY_SEAT_STATUS_MGQ (0x11111100)
 #define KEY_WORKERS_SEAT_SEM (0x22222222)
@@ -18,6 +17,7 @@
 #define KEY_SYNC_CHILDREN_START_SEM (0x22222200)
 #define KEY_SEATS_SHM (0x33333333)
 #define KEY_CONFIG_SHM (0x33333330)
+#define KEY_TICKETS_BUCKET_SHM (0x33333303)
 
 //Macro
 #define EXCLUSIVE_CREATE_FLAG (0666|IPC_CREAT|IPC_EXCL)
@@ -74,13 +74,10 @@ typedef struct {
     Ticket ticket;
 }Ticket_request_message;
 
+
 typedef struct{
     long mtype;//0 richiesta, 1 erogato
-    Ticket ticket;
-}Ticket_emanation_message;
-typedef struct{
-    long mtype;//0 richiesta, 1 erogato
-    Ticket ticket;
+    int ticket_index;
 }Ticket_tbe_message;
 //todo (se serve): Sembuf,
 

@@ -22,6 +22,7 @@ pid_t *child_pids = NULL;
 //IPCs
 Config *config_shm_ptr;
 Seat *seats_shm_ptr;
+Ticket *tickets_bucket_shm_ptr;
 int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
 int ticket_request_msg_id;
@@ -98,6 +99,16 @@ void setup_ipcs() {
     }
     seats_shm_ptr = shmat(seats_shm_id, NULL, EXCLUSIVE_CREATE_FLAG);
     if (seats_shm_ptr == (void *)-1) {
+        perror("[ERROR] shmat() per seats_shm fallito");
+        exit(EXIT_FAILURE);
+    }
+    int tickets_bucket_shm_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket) * config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION, EXCLUSIVE_CREATE_FLAG);
+    if (tickets_bucket_shm_id == -1) {
+        perror("Errore nella creazione della memoria condivisa per i posti");
+        exit(EXIT_FAILURE);
+    }
+    tickets_bucket_shm_ptr = shmat(tickets_bucket_shm_id, NULL, EXCLUSIVE_CREATE_FLAG);
+    if (tickets_bucket_shm_ptr == (void *)-1) {
         perror("[ERROR] shmat() per seats_shm fallito");
         exit(EXIT_FAILURE);
     }
@@ -298,6 +309,10 @@ void free_memory() {
     int seats_shm_id = shmget(KEY_SEATS_SHM, sizeof(Seat) * config_shm_ptr->NOF_WORKER_SEATS, 0666);
     if (seats_shm_id != -1) {
         shmctl(seats_shm_id, IPC_RMID, NULL);
+    }
+    int tickets_bucket_shm_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(config_shm_ptr->SIM_DURATION*config_shm_ptr->NOF_USERS), 0666);
+    if (tickets_bucket_shm_id != -1) {
+        shmctl(tickets_bucket_shm_id, IPC_RMID, NULL);
     }
 
     // Rimozione dei semafori degli sportelli

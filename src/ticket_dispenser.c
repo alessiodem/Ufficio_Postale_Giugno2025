@@ -23,6 +23,7 @@ int tickets_tbe_mgq_id;//tbe= to be erogated
 Ticket_request_message tmsg;
 int ticket_index = 0;
 int seat_finder_index=0;
+Ticket *tickets_bucket_shm_ptr;
 Seat *seats_shm_ptr;
 Config *config_shm_ptr;
 
@@ -78,11 +79,6 @@ void setup_ipcs() {
         perror("[ERROR] msgget() per ticket_msg_id fallito");
         exit(EXIT_FAILURE);
     }
-    ticket_emanation_mgq_id = msgget(KEY_TICKET_EMANATION_MGQ, 0666);
-    if (ticket_emanation_mgq_id == -1) {
-        perror("[ERROR] msgget() per ticket_msg_emanation_id fallito");
-        exit(EXIT_FAILURE);
-    }
     tickets_tbe_mgq_id = msgget(KEY_TICKETS_TBE_MGQ, 0666);
     if (tickets_tbe_mgq_id == -1) {
         perror("[ERROR] msgget() per ticket_tbe_mgq_id fallito");
@@ -106,6 +102,16 @@ void setup_ipcs() {
     }
     seats_shm_ptr = shmat(seats_shm_id, NULL, 0);
     if (seats_shm_ptr == (void *)-1) {
+        perror("[ERROR] shmat() per seats_shm fallito");
+        exit(EXIT_FAILURE);
+    }
+    int tickets_bucket_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket) * config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION, 0666);
+    if (tickets_bucket_id == -1) {
+        perror("[ERROR] shmget() per seats_shm fallito");
+        exit(EXIT_FAILURE);
+    }
+    tickets_bucket_shm_ptr = shmat(tickets_bucket_id, NULL, 0);
+    if (tickets_bucket_shm_ptr == (void *)-1) {
         perror("[ERROR] shmat() per seats_shm fallito");
         exit(EXIT_FAILURE);
     }
@@ -181,6 +187,7 @@ int main(int argc, char *argv[]) {
         //todo: il codice qui sarebbe più indicato sotto ma il generate ticket ma spostato all'interno di ttbemsg e conseguenti modifiche
         tmsg.ticket = generate_ticket(tmsg.service_type, ticket_index);
         tmsg.mtype = 1;
+        tickets_bucket_shm_ptr[tmsg.ticket.ticket_id]=tmsg.ticket;
         ticket_index++;
 
         Ticket_tbe_message ttbemsg;

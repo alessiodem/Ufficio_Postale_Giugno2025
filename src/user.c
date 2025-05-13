@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
             req.service_type = service_type;
             msgsnd(ticket_request_msg_id, &req, MSG_SIZE, 0);
 
-            while (req.ticket.is_done==0)//todo: ottimizzare questa attesa (si potrebbe passare il comando al prossimo processo all'interno del while)
+            while (req.ticket.is_done==0);//todo: ottimizzare questa attesa (si potrebbe passare il comando al prossimo processo all'interno del while)
 
             printf("------- Utente %d: Servizio completato-------\n", getpid());
             go_home();

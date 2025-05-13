@@ -17,6 +17,7 @@ int children_go_sync_sem_id;
 sigjmp_buf jump_buffer;
 Seat *seats_shm_ptr;
 Config *config_shm_ptr;
+Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
 int ticket_emanation_mgq_id;//todo: rimuovere ticket_emanation_mgq e tutto ciò che lo riguarda se ticket_tbe_mgq funziona
 int tickets_tbe_mgq_id;//tbe= to be erogated
@@ -84,10 +85,6 @@ void setup_ipcs() {
         perror("Errore msgget KEY_TICKET_REQUEST_MGQ");
         exit(EXIT_FAILURE);
     }
-    if ((ticket_emanation_mgq_id = msgget(KEY_TICKET_EMANATION_MGQ, 0666)) == -1) {
-        perror("Errore msgget KEY_TICKET_EMANATION_MGQ");
-        exit(EXIT_FAILURE);
-    }
     tickets_tbe_mgq_id = msgget(KEY_TICKETS_TBE_MGQ, 0666);
     if (tickets_tbe_mgq_id == -1) {
         perror("[ERROR] msgget() per ticket_tbe_mgq_id fallito");
@@ -100,6 +97,16 @@ void setup_ipcs() {
     }
     seats_shm_ptr = shmat(seats_shm_id, NULL, 0);
     if (seats_shm_ptr == (void *)-1) {
+        perror("[ERROR] shmat() per seats_shm fallito");
+        exit(EXIT_FAILURE);
+    }
+    int tickets_bucket_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket) * config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION, 0666);
+    if (tickets_bucket_id == -1) {
+        perror("[ERROR] shmget() per seats_shm fallito");
+        exit(EXIT_FAILURE);
+    }
+    tickets_bucket_shm_ptr = shmat(tickets_bucket_id, NULL, 0);
+    if (tickets_bucket_shm_ptr == (void *)-1) {
         perror("[ERROR] shmat() per seats_shm fallito");
         exit(EXIT_FAILURE);
     }
@@ -143,10 +150,10 @@ int main () {
                     Ticket_tbe_message ttbemsg;
                     msgrcv(tickets_tbe_mgq_id,&ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);
 
-                    printf("[DEBUG] Worker %d: Inizio servizio, durata: %d\n", getpid(), ttbemsg.ticket.actual_time);
-                    sleep(ttbemsg.ticket.actual_time);
-                    clock_gettime(CLOCK_MONOTONIC,&ttbemsg.ticket.end_time);
-                    ttbemsg.ticket.is_done = 1;
+                    printf("[DEBUG] Worker %d: Inizio servizio, durata: %d\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
+                    sleep(tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
+                    clock_gettime(CLOCK_MONOTONIC,&tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time);
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
 
                     printf("[DEBUG] Worker %d: Servizio completato\n", getpid());
 
