@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <bits/signum-generic.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
@@ -11,6 +10,7 @@
 #include "common.h"
 #include "sem_handling.h"
 #include "utils.h"
+#include <sched.h>
 
 int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
@@ -21,7 +21,7 @@ Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
 int ticket_emanation_mgq_id;//todo: rimuovere ticket_emanation_mgq e tutto ciò che lo riguarda se ticket_tbe_mgq funziona
 int tickets_tbe_mgq_id;//tbe= to be erogated
-Seat current_seat;
+int current_seat_index;
 int aviable_breaks;
 int in_break = 0;
 
@@ -31,19 +31,21 @@ ServiceType service_type;
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
         printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
-
-
         // pulire risorse
         // se serve terminare in modo pulito le risorse posso farlo qui
         // rimettersi in ready
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
     }else if (sig== SIGTERM) {
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
-        fflush(stdout);
+        shmdt(config_shm_ptr);
+        shmdt(seats_shm_ptr);
+        shmdt(tickets_bucket_shm_ptr);
+        //fflush(stdout); todo: capire se questa riga serve tramite dei test
         exit(0);
     }
 }
 void setup_sigaction(){
+    //todo: forse serve isolare i segnali che mi servono(ENDDAY  e SIGTERM) ed escludere gli altri
     struct sigaction sa;
     sa.sa_handler = handle_sig;
     sigemptyset(&sa.sa_mask);  // Nessun segnale bloccato durante l'esecuzione dell'handler
@@ -80,6 +82,7 @@ void setup_ipcs() {
     config_shm_ptr = shmat(config_shm_id, NULL, 0);
     if (config_shm_ptr == (void *)-1) {
         perror("Errore nella memoria condivisa per la configurazione");
+        exit(EXIT_FAILURE);
     }
     if ((ticket_request_msg_id = msgget(KEY_TICKET_REQUEST_MGQ, 0666)) == -1) {
         perror("Errore msgget KEY_TICKET_REQUEST_MGQ");
@@ -123,7 +126,8 @@ void set_ready() {
     printf("[DEBUG] Operatore %d: Sto iniziando una nuova giornata\n", getpid());
 }
 void go_on_break() {
-    printf("[DEBUG] Operatore %d: Vado in pausa\n", getpid());
+    printf("[DEBUG] Operatore %d: Vado in pausa, abbandono il posto allo sportello\n", getpid());
+    semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
     pause(); // aspetta la fine della giornata ENDDAY o della simulazione
 }
 
@@ -132,21 +136,21 @@ int main () {
     setup_ipcs();
     aviable_breaks = config_shm_ptr->NOF_PAUSE;
     service_type = get_random_service_type();
-    sigsetjmp(jump_buffer, 1);
+    sigsetjmp(jump_buffer, 1);//todo: capire se è necessario il controllo sul valore di ritorno di questa funzione
 
     set_ready();
 
-        for (int i=0; i<config_shm_ptr->NOF_WORKER_SEATS; i++) {
-            if (seats_shm_ptr[i].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[i].worker_sem_id, -1) == 0/*todo: assicurarsi che questa seconda parte dill'if funzioni davvero*/) {
+    while (1) {//questo endless loop serve per consentirgli di continuare a cercare un seat libero, è inefficente todo: se vogliamo farlo bene va sostituito con un sistema di segnali quando un seat si libera
+
+        for ( int i=0 ; i<config_shm_ptr->NOF_WORKER_SEATS; i++) {
+            if (seats_shm_ptr[i].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[i].worker_sem_id, -1) == 0) {
                 printf("[DEBUG] Worker %d: Trovato posto libero %d\n", getpid(), i);
-                current_seat = seats_shm_ptr[i];
+                current_seat_index = i;
 
                 //EROGAZIONE SERVIZIO
                 while (1){
                     printf("[DEBUG] Worker %d: In attesa di ticket da erogare del mio tipo di servizio \n", getpid());
 
-
-                    printf("[DEBUG] Worker %d: Cliente arrivato, attendo ticket\n", getpid());
                     Ticket_tbe_message ttbemsg;
                     msgrcv(tickets_tbe_mgq_id,&ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);
 
@@ -159,9 +163,8 @@ int main () {
 
                     //DECIDE SE ANDARE IN PAUSA
                     if (aviable_breaks > 0) {
-                        in_break = rand() % P_BREAK == 0;
 
-                        if (in_break == 1) {
+                        if ( P_BREAK > 0 && rand() % P_BREAK == 0 ) {
                             aviable_breaks--;
                             printf("[DEBUG] Worker %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
                             go_on_break();
@@ -170,13 +173,12 @@ int main () {
                             printf("[DEBUG] Worker %d: NON vado in pausa\n", getpid());
                         }
                     }
-
-                    printf("[DEBUG] Worker %d: Processo terminato in modo inaspettato\n", getpid());
-                    return 0;
                 }
             }
-            if (i==config_shm_ptr->NOF_WORKER_SEATS)
-                i=0;
         }
+        sched_yield(); // cede la CPU ad altri processi pronti se ha ciclato fino all'ultimo seat e non ha trovato dove sedersi (non è al 100% efficiente e sensato ma dovrebbe funzionare)
+    }
+    printf("[DEBUG] Worker %d: Processo terminato in modo inaspettato\n", getpid());
+    return 0;
 
 }

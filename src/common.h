@@ -48,7 +48,7 @@ typedef struct {
 //todo: TIcket potrebbe venire stato cambiato rispetto all progetto x gennaio, andreanno cambiate un po' di robe nell'utilizzo se decidiamo di cambiarlo
 //todo: il cambiamento principale starebbe nel fatto che prima il ticket veniva usato dallo user, adesso viene mandato direttamente al worker
 typedef struct {
-    int ticket_id;                 // ID univoco del ticket
+    int ticket_index;                 // ID univoco del ticket
     int user_id;                   // ID dell'utente
     int service_type;             // Tipo di servizio richiesto (es. 0 = anagrafe, 1 = tributi, ecc.)
     int actual_time;//old ver.
@@ -71,7 +71,7 @@ typedef struct {
     long mtype;// 1= ticket creato,2= richiesta
     pid_t requiring_user;
     ServiceType service_type;
-    Ticket ticket;
+    int ticket_index;
 }Ticket_request_message;
 
 

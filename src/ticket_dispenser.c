@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <sys/msg.h>
 #include <unistd.h>
-#include <bits/signum-generic.h>
 #include <sys/shm.h>
 
 #include "common.h"
@@ -20,7 +19,7 @@ sigjmp_buf jump_buffer;
 
 int ticket_request_mgq_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
-Ticket_request_message tmsg;
+
 int ticket_index = 0;
 int seat_finder_index=0;
 Ticket *tickets_bucket_shm_ptr;
@@ -41,6 +40,9 @@ void handle_sig(int sig) {
     }
     else if (sig == SIGTERM) {
         //todo: potrebbe esserci bisogno id altro(come fflush(stdout), non mi sebra serva ma se qualcosa non funziona potrebbe essere per la sua assenza
+        shmdt(config_shm_ptr);
+        shmdt(seats_shm_ptr);
+        shmdt(tickets_bucket_shm_ptr);
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         exit(0);
     }
@@ -107,12 +109,12 @@ void setup_ipcs() {
     }
     int tickets_bucket_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket) * config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION, 0666);
     if (tickets_bucket_id == -1) {
-        perror("[ERROR] shmget() per seats_shm fallito");
+        perror("[ERROR] shmget() per tickets_bucket_shm fallito");
         exit(EXIT_FAILURE);
     }
     tickets_bucket_shm_ptr = shmat(tickets_bucket_id, NULL, 0);
     if (tickets_bucket_shm_ptr == (void *)-1) {
-        perror("[ERROR] shmat() per seats_shm fallito");
+        perror("[ERROR] shmat() per tickets_bucket_shm fallito");
         exit(EXIT_FAILURE);
     }
 }
@@ -137,67 +139,76 @@ int generate_random_time(int average_time) {
 //todo: potremmo trovare un modo migliore rispetto a questo
 int find_a_seat_index(ServiceType service_type) {
     printf("[DEBUG] Ticket Dispenser: Ricerca posto per servizio tipo %d\n", service_type);
-    while (1) {
+    int attempts= 0;
+    while (attempts<config_shm_ptr->NOF_WORKER_SEATS) {
+        seat_finder_index = seat_finder_index % config_shm_ptr->NOF_WORKER_SEATS;
         if (seats_shm_ptr[seat_finder_index].service_type == service_type) {
             printf("[DEBUG] Ticket Dispenser: Trovato posto all'indice %d\n", seat_finder_index);
             seat_finder_index++;
             return seat_finder_index-1;
         }
         seat_finder_index++;
-        seat_finder_index = seat_finder_index % config_shm_ptr->NOF_WORKER_SEATS;
+        attempts++;
         printf("[DEBUG] Ticket Dispenser: Spostamento all'indice %d\n", seat_finder_index);
     }
-    // non è possibile che non lo trovi perché viene fatto prima un controllo
+    // non è possibile che non lo trovi perché viene fatto prima un controllo da parte dell'utente
+    perror("[TD_ERROR] Terminazione inaspettata, non è stato trovato un posto per il servizio dal ticket_dispenser: controllo precedente fallito");
+    exit(EXIT_FAILURE);
 }
 
 
-Ticket generate_ticket(ServiceType service_type, int ticket_number) {
+Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requiring_user_pid) {
     printf("[DEBUG] Ticket Dispenser: Generazione ticket %d per servizio tipo %d\n", ticket_number, service_type);
 
     int average_time = get_average_time(service_type);
     Ticket ticket = {
-        .ticket_id = ticket_number,
+        .ticket_index = ticket_number,
         .service_type = service_type,
         .actual_time = generate_random_time(average_time),
         .seat_index = find_a_seat_index(service_type),//todo:  queste funzioni potrebbero dare il problema di eccessiva roba nello stack di chiamate, capire se effettivamente è un problema
-        .is_done = 0
+        .is_done = 0,
+        .user_id =requiring_user_pid
     };
 
     printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo: %d\n",
-           ticket.ticket_id, ticket.actual_time);
+           ticket.ticket_index, ticket.actual_time);
     return ticket;
 }
 
 //MAIN
 
 int main(int argc, char *argv[]) {
-
+    srand(time(NULL));
     initSigAction();
     printf("[DEBUG] Ticket Dispenser: Avvio processo\n");
     setup_ipcs();
     sigsetjmp(jump_buffer, 1);
+    Ticket_request_message tmsg;
 
     set_ready();
-
     while (1) {
         printf("[DEBUG] Ticket Dispenser: In attesa di richiesta ticket\n");
-        msgrcv(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0, 0);
+        msgrcv(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 2, 0);
 
         printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
         //todo: il codice qui sarebbe più indicato sotto ma il generate ticket ma spostato all'interno di ttbemsg e conseguenti modifiche
-        tmsg.ticket = generate_ticket(tmsg.service_type, ticket_index);
-        tmsg.mtype = 1;
-        tickets_bucket_shm_ptr[tmsg.ticket.ticket_id]=tmsg.ticket;
+        Ticket ticket = generate_ticket(tmsg.service_type, ticket_index, tmsg.requiring_user);
+        tmsg.mtype = ticket.user_id;
+        tickets_bucket_shm_ptr[ticket.ticket_index]=ticket;
         ticket_index++;
 
         Ticket_tbe_message ttbemsg;
-        ttbemsg.ticket_index=tmsg.ticket.ticket_id;
-        ttbemsg.mtype=tmsg.ticket.service_type+1;//+1 perché m_type non può essere 0 ed esistre un service_type=0
-        printf("[DEBUG] Ticket Dispenser: Invio ticket %d alla coda di tickets da erogare \n",tmsg.ticket.ticket_id);
-        msgsnd(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg) - sizeof(long), 0);
+        ttbemsg.ticket_index=ticket.ticket_index;
+        ttbemsg.mtype=ticket.service_type+1;//+1 perché m_type non può essere 0 ed esistre un service_type=0
+        printf("[DEBUG] Ticket Dispenser: Invio ticket %d alla coda di tickets da erogare \n",ticket.ticket_index);
+        if (msgsnd(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg) - sizeof(long), 0)==-1) {
+            perror("[TD_ERROR] invio ticket da erogare fallito");
+        }
 
-        printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d\n", tmsg.ticket.ticket_id, tmsg.requiring_user);
-        msgsnd(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0);
+        printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d\n", ticket.ticket_index, tmsg.requiring_user);
+        if (msgsnd(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0)==-1) {
+            perror("[TD_ERROR] invio ticket all'utente fallito");
+        }
         printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
     }
 

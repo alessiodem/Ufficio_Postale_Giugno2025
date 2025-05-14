@@ -40,8 +40,8 @@ void add_child_pid(pid_t child_pid) {
         exit(EXIT_FAILURE);
     }
     child_pids = temp;
-    no_children++;
     child_pids[no_children] = child_pid;
+    no_children++;
 }
 
 void fork_and_execute(const char *file_path, char *const argv[]) {
@@ -82,22 +82,29 @@ void setup_ipcs() {
     if (children_ready_sync_sem_id == -1) {
         perror("Errore nella creazione del semaforo di sincronizzazione per i figli");
         exit(EXIT_FAILURE);
-    }else
-        semctl(children_ready_sync_sem_id, 0, SETVAL, 0);//todo: controllare se è superfluo
+    }
+        if (semctl(children_ready_sync_sem_id, 0, SETVAL, 0) == -1) {
+            perror("Errore nel settaggio iniziale del semaforo children_ready_sync_sem_id");
+            exit(EXIT_FAILURE);
+        }
+
 
     children_go_sync_sem_id = semget(KEY_SYNC_CHILDREN_START_SEM, 1, EXCLUSIVE_CREATE_FLAG);
     if (children_go_sync_sem_id == -1) {
         perror("Errore nella creazione del semaforo di partenza per i figli");
         exit(EXIT_FAILURE);
-    }else
-        semctl(children_go_sync_sem_id, 0, SETVAL, 1);//todo: capire se va controllato il ritorno della funzione
+    }
+    if (semctl(children_go_sync_sem_id, 0, SETVAL, 1) == -1) {
+        perror("Errore nel settaggio iniziale del semaforo children_go_sync_sem_id");
+        exit(EXIT_FAILURE);
+    }
 
     int seats_shm_id = shmget(KEY_SEATS_SHM, sizeof(Seat) * config_shm_ptr->NOF_WORKER_SEATS, EXCLUSIVE_CREATE_FLAG);
     if (seats_shm_id == -1) {
         perror("Errore nella creazione della memoria condivisa per i posti");
         exit(EXIT_FAILURE);
     }
-    seats_shm_ptr = shmat(seats_shm_id, NULL, EXCLUSIVE_CREATE_FLAG);
+    seats_shm_ptr = shmat(seats_shm_id, NULL, 0);
     if (seats_shm_ptr == (void *)-1) {
         perror("[ERROR] shmat() per seats_shm fallito");
         exit(EXIT_FAILURE);
@@ -107,7 +114,7 @@ void setup_ipcs() {
         perror("Errore nella creazione della memoria condivisa per i posti");
         exit(EXIT_FAILURE);
     }
-    tickets_bucket_shm_ptr = shmat(tickets_bucket_shm_id, NULL, EXCLUSIVE_CREATE_FLAG);
+    tickets_bucket_shm_ptr = shmat(tickets_bucket_shm_id, NULL, 0);
     if (tickets_bucket_shm_ptr == (void *)-1) {
         perror("[ERROR] shmat() per seats_shm fallito");
         exit(EXIT_FAILURE);
@@ -150,9 +157,10 @@ void load_config(FILE *config_file) {
         char *value = strtok(NULL, " ");
         int value_int = strtoul(value, NULL, 10);
         double value_double = strtod(value, NULL);
-        if (value_int < 0||value_double<0) {
+        if ( value_int < 0 || value_double<0 || name == NULL || value == NULL) {
             incorrect_config = 1;
-            break;
+            fclose(config_file);
+            exit(EXIT_FAILURE);
         }
         if (strcmp(name, "NOF_WORKERS") == 0) config_shm_ptr->NOF_WORKERS = value_int;
         else if (strcmp(name, "NOF_USERS") == 0) config_shm_ptr->NOF_USERS = value_int;
@@ -173,6 +181,7 @@ void load_config(FILE *config_file) {
     if (incorrect_config == 1 ||config_shm_ptr->P_SERV_MAX>1||config_shm_ptr->P_SERV_MIN>config_shm_ptr->P_SERV_MAX||read_lines < 8) { //non può essere <0 per i controlli sopra
         fclose(config_file);
         printf("Errore nella lettura config");
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -281,10 +290,10 @@ void reset_resources(){
     if (errno != ENOMSG) {
         perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
     }
-    Ticket_tbe_message ttbemsg;//todo: assicurarsi che
-    while (msgrcv(tickets_tbe_mgq_id, &trm, sizeof(ttbemsg)-sizeof(ttbemsg.mtype), 0, IPC_NOWAIT) != -1);
+    Ticket_tbe_message ttbemsg;
+    while (msgrcv(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg)-sizeof(ttbemsg.mtype), 0, IPC_NOWAIT) != -1);
     if (errno != ENOMSG) {
-        perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
+        perror("[ERRORE] Errore nello svuotamento della message queue tickets_tbe_mgq_id");
     }
 
 
@@ -315,7 +324,7 @@ void free_memory() {
     if (seats_shm_id != -1) {
         shmctl(seats_shm_id, IPC_RMID, NULL);
     }
-    int tickets_bucket_shm_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(config_shm_ptr->SIM_DURATION*config_shm_ptr->NOF_USERS), 0666);
+    int tickets_bucket_shm_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket)*config_shm_ptr->SIM_DURATION*config_shm_ptr->NOF_USERS, 0666);
     if (tickets_bucket_shm_id != -1) {
         shmctl(tickets_bucket_shm_id, IPC_RMID, NULL);
     }
@@ -352,7 +361,7 @@ int main (int argc, char *argv[]){
     //todo: TOTEST
     setup_config();
     if (argc != 2) {
-        fprintf(stderr, "Usage: %s <config_file_path>\n", argv[0]);//todo: cambiare messaggio di errore
+        fprintf(stderr, "[USAGE] %s <percorso_file_config>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 

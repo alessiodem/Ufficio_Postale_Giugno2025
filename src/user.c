@@ -4,12 +4,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/msg.h>
+#include <sched.h>
 #include <sys/shm.h>
 
 #include "common.h"
 #include "sem_handling.h"
 #include "utils.h"
-
 
 //VARIABILI GLOBALI
 int children_ready_sync_sem_id;
@@ -17,9 +17,9 @@ int children_go_sync_sem_id;
 sigjmp_buf jump_buffer;
 Seat *seats_shm_ptr;
 Config *config_shm_ptr;
+Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
 
-#define MSG_SIZE (sizeof(req) - sizeof(long))
 
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void handle_sig(int sig) {
@@ -33,7 +33,10 @@ void handle_sig(int sig) {
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
     }else if (sig== SIGTERM) {
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
-        fflush(stdout);
+        shmdt(config_shm_ptr);
+        shmdt(seats_shm_ptr);
+        shmdt(tickets_bucket_shm_ptr);
+        //fflush(stdout); todo: capire se questa cosa serve tramite dei test
         exit(0);
     }
 }
@@ -74,9 +77,30 @@ void setup_ipcs() {
     config_shm_ptr = shmat(config_shm_id, NULL, 0);
     if (config_shm_ptr == (void *)-1) {
         perror("Errore nella memoria condivisa per la configurazione");
+        exit(EXIT_FAILURE);
     }
     if ((ticket_request_msg_id = msgget(KEY_TICKET_REQUEST_MGQ, 0666)) == -1) {
         perror("Errore msgget KEY_TICKET_REQUEST_MGQ");
+        exit(EXIT_FAILURE);
+    }
+    int seats_shm_id = shmget(KEY_SEATS_SHM, sizeof(Seat) * config_shm_ptr->NOF_WORKER_SEATS, 0666);
+    if (seats_shm_id == -1) {
+        perror("Errore nella memoria condivisa per i posti");
+        exit(EXIT_FAILURE);
+    }
+    seats_shm_ptr = shmat(seats_shm_id, NULL, 0);
+    if (seats_shm_ptr == (void *)-1) {
+        perror("Errore nel collegamento alla memoria condivisa dei posti");
+        exit(EXIT_FAILURE);
+    }
+    int tickets_bucket_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket) * config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION, 0666);
+    if (tickets_bucket_id == -1) {
+        perror("[ERROR] shmget() per seats_shm fallito");
+        exit(EXIT_FAILURE);
+    }
+    tickets_bucket_shm_ptr = shmat(tickets_bucket_id, NULL, 0);
+    if (tickets_bucket_shm_ptr == (void *)-1) {
+        perror("[ERROR] shmat() per seats_shm fallito");
         exit(EXIT_FAILURE);
     }
 
@@ -107,7 +131,7 @@ int decide_if_go() {
 
     return decision;
 }
-int check_for_service_aviability(ServiceType service_type) {
+int check_for_service_availability(ServiceType service_type) {
     printf("[DEBUG] Utente %d: Controllo disponibilità servizio tipo %d\n", getpid(), service_type);
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         if (seats_shm_ptr[i].service_type == service_type) {
@@ -127,15 +151,7 @@ int main(int argc, char *argv[]) {
     setup_sigaction();
     srand(getpid());
     setup_ipcs();
-
-    /*int jump_result =*/ sigsetjmp(jump_buffer, 1);
-    //non  ricordo del perché ho messo queste righe di codice ma sembrerebbe poter avere un senso(potrebbe benissimo essere un delirio delle 4 del mattino e basta ) dovrebbe poter essere cacciato ma in caso servisse è qui
-    // if (jump_result != 0) {
-    //     // Salto eseguito da siglongjmp() dopo ENDEDDAY
-    //     set_ready();
-    //     printf("[DEBUG] Utente %d: Inizio nuova giornata\n", getpid());
-    // }
-
+    sigsetjmp(jump_buffer, 1);
 
     set_ready();
 
@@ -143,22 +159,30 @@ int main(int argc, char *argv[]) {
         ServiceType service_type = get_random_service_type();
         printf("[DEBUG] Utente %d: Ho scelto il servizio tipo %d\n", getpid(), service_type);
 
-        if (check_for_service_aviability(service_type)) {
+        if (check_for_service_availability(service_type)) {
             printf("[DEBUG] Utente %d: Servizio disponibile, calcolo tempo di attesa\n", getpid());
 
         ///RICHIEDE IL TICKET
         //TODO: rivedere la '''funzione''' sotto con la nuova versione di Ticket quando definiremo i Ticket
         // get_ticket(ServiceType service_type)
             printf("[DEBUG] Utente %d: Richiedo ticket per servizio tipo %d\n", getpid(), service_type);
-            Ticket_request_message req;
-            req.mtype = 2;
-            req.requiring_user = getpid();
-            req.service_type = service_type;
-            msgsnd(ticket_request_msg_id, &req, MSG_SIZE, 0);
+            Ticket_request_message trm;
+            trm.mtype = 2;
+            trm.requiring_user = getpid();
+            trm.service_type = service_type;
+            if (msgsnd(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), 0)==-1) {
+                perror("Errore nell'invio della richiesta di ticket");
+                exit(EXIT_FAILURE);
+            }
 
-            while (req.ticket.is_done==0);//todo: ottimizzare questa attesa (si potrebbe passare il comando al prossimo processo all'interno del while)
+            msgrcv(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), getpid(), 0);
+            Ticket ticket = tickets_bucket_shm_ptr[trm.ticket_index];
+
+            while (ticket.is_done==0)
+                sched_yield(); // cede la CPU ad altri processi pronti
 
             printf("------- Utente %d: Servizio completato-------\n", getpid());
+            //todo: potrei stampare i dati del ticket erogato
             go_home();
         } else {
             printf("[DEBUG] Utente %d: Servizio non disponibile\n", getpid());
