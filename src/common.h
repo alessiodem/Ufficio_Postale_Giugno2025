@@ -68,7 +68,7 @@ typedef struct {
 }Ticket;
 
 typedef struct {
-    long mtype;//0= richiesta, 1= ticket creato
+    long mtype;// 1= ticket creato,2= richiesta
     pid_t requiring_user;
     ServiceType service_type;
     Ticket ticket;
@@ -76,7 +76,7 @@ typedef struct {
 
 
 typedef struct{
-    long mtype;//0 richiesta, 1 erogato
+    long mtype;// 1 erogato,2 richiesta
     int ticket_index;
 }Ticket_tbe_message;
 //todo (se serve): Sembuf,

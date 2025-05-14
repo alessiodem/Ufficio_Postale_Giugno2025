@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
         ticket_index++;
 
         Ticket_tbe_message ttbemsg;
-        ttbemsg.ticket=tmsg.ticket;
+        ttbemsg.ticket_index=tmsg.ticket.ticket_id;
         ttbemsg.mtype=tmsg.ticket.service_type+1;//+1 perché m_type non può essere 0 ed esistre un service_type=0
         printf("[DEBUG] Ticket Dispenser: Invio ticket %d alla coda di tickets da erogare \n",tmsg.ticket.ticket_id);
         msgsnd(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg) - sizeof(long), 0);

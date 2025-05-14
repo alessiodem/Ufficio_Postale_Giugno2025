@@ -281,7 +281,12 @@ void reset_resources(){
     if (errno != ENOMSG) {
         perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
     }
-    //todo: svuotare tickets_tbe_mgq
+    Ticket_tbe_message ttbemsg;//todo: assicurarsi che
+    while (msgrcv(tickets_tbe_mgq_id, &trm, sizeof(ttbemsg)-sizeof(ttbemsg.mtype), 0, IPC_NOWAIT) != -1);
+    if (errno != ENOMSG) {
+        perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
+    }
+
 
 }
 void free_memory() {

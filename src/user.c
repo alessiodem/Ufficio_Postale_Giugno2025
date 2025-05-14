@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
         // get_ticket(ServiceType service_type)
             printf("[DEBUG] Utente %d: Richiedo ticket per servizio tipo %d\n", getpid(), service_type);
             Ticket_request_message req;
-            req.mtype = 0;
+            req.mtype = 2;
             req.requiring_user = getpid();
             req.service_type = service_type;
             msgsnd(ticket_request_msg_id, &req, MSG_SIZE, 0);
