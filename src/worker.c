@@ -201,7 +201,7 @@ int main () {
                 }
             }
         }
-        printf("[Operatore] non ho trovato uno sportello disponibile, aspetto");
+        printf("[Operatore] non ho trovato uno sportello disponibile, aspetto\n");
         sched_yield(); // cede la CPU ad altri processi pronti se ha ciclato fino all'ultimo seat e non ha trovato dove sedersi (non è al 100% efficiente e sensato ma dovrebbe funzionare)
     }
     printf("[DEBUG] Worker %d: Processo terminato in modo inaspettato\n", getpid());

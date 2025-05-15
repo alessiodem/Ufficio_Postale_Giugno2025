@@ -84,7 +84,7 @@ int semaphore_do_not_wait(int sem_id,int custom_operation) {
     //printf("[DEBUG] sto eseguendo do not wait"); se cacci questo commmetno esplode tutto perché il worker lo usa per fare attesa attiva
     struct sembuf op;
     op.sem_num = 0;
-    op.sem_op = custom_operation; // Incrementa il semaforo
+    op.sem_op = custom_operation; 
     op.sem_flg = IPC_NOWAIT;
 
     int semop_return=semop(sem_id, &op, 1);
@@ -92,6 +92,7 @@ int semaphore_do_not_wait(int sem_id,int custom_operation) {
         perror("Error during do not wait semaphore signal");
         exit(EXIT_FAILURE);
     }
+    printf("semop valore ritorno :%d/n", semop_return);
     return semop_return;
 }
 
