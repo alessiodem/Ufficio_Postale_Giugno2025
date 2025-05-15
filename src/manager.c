@@ -7,7 +7,6 @@
 #include <sys/shm.h>
 #include <time.h>
 #include <unistd.h>
-#include <asm-generic/errno.h>
 #include <sys/msg.h>
 
 #include "common.h"
