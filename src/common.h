@@ -22,8 +22,8 @@
 //Macro
 #define EXCLUSIVE_CREATE_FLAG (0666|IPC_CREAT|IPC_EXCL)
 #define ENDEDDAY (SIGUSR1)
-#define SECS_FOR_A_DAY (480 * config_shm_ptr->N_NANO_SECS / 1000000000)
-#define NSECS_FOR_A_DAY ((480 * config_shm_ptr->N_NANO_SECS) % 1000000000)
+#define SECS_FOR_A_DAY (480 * config_shm_ptr->N_NANO_SECS / 1000000)//todo: per oea è gestito in micro ssecondi perchè altrimenti la iornata è troppo corta per qualche motivo
+#define NSECS_FOR_A_DAY ((480 * config_shm_ptr->N_NANO_SECS) % 1000000)
 #define LINE_BUFFER_SIZE (1024)
 #define P_BREAK (10) //probabilità 1/10 todo: così è gestita in modo brutto, sistemare o nascondere questa macro
 
@@ -66,6 +66,7 @@ typedef struct {
     int operator_id;              // ID dell’operatore che ha servito (se servito)
 
 }Ticket;
+#define NO_TICKET_ATTRIBUTES 12
 
 typedef struct {
     long mtype;// 1= ticket creato,2= richiesta

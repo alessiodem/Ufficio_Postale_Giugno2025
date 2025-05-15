@@ -187,8 +187,8 @@ void load_config(FILE *config_file) {
 
 //todo: test
 void compute_daytime(){
-    int secs_for_a_day = (480 * config_shm_ptr->N_NANO_SECS) / 1000000000;
-    int nsecs_for_a_day = (480 * config_shm_ptr->N_NANO_SECS) % 1000000000;
+    int secs_for_a_day = SECS_FOR_A_DAY;
+    int nsecs_for_a_day = NSECS_FOR_A_DAY;
     ts.tv_sec=secs_for_a_day;
     ts.tv_nsec=nsecs_for_a_day;
 }

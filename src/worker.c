@@ -116,6 +116,31 @@ void setup_ipcs() {
 
     printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
 }
+//FUNZIONI DI DEBUG
+#include <time.h>
+void print_ticket(Ticket ticket) {
+    printf("\n========== TICKET INFO ==========\n");
+    printf("🆔 Ticket Index      : %d\n", ticket.ticket_index);
+    printf("👤 User ID           : %d\n", ticket.user_id);
+    printf("🔧 Service Type      : %d\n", ticket.service_type);
+    printf("📅 Day Number        : %d\n", ticket.day_number);
+
+    printf("⏰ Request Time      : %ld.%09ld\n", ticket.request_time.tv_sec, ticket.request_time.tv_nsec);
+    printf("⏱️  End Time          : %ld.%09ld\n", ticket.end_time.tv_sec, ticket.end_time.tv_nsec);
+
+    printf("✅ Served            : %s\n", ticket.served ? "Yes" : "No");
+    if (ticket.served) {
+        printf("🏢 Desk ID           : %d\n", ticket.des_id);
+        printf("👨‍💼 Operator ID      : %d\n", ticket.operator_id);
+    }
+
+    // Campi old version (se ancora rilevanti per debug)
+    printf("🕒 Old Actual Time   : %d\n", ticket.actual_time);
+    printf("📍 Old Seat Index    : %d\n", ticket.seat_index);
+    printf("✔️  Old is_done       : %d\n", ticket.is_done);
+
+    printf("==================================\n");
+}
 
 
 //FUNZIONI DI FLOW PRINCIPALE
@@ -152,7 +177,7 @@ int main () {
                     printf("[DEBUG] Worker %d: In attesa di ticket da erogare del mio tipo di servizio \n", getpid());
 
                     Ticket_tbe_message ttbemsg;
-                    msgrcv(tickets_tbe_mgq_id,&ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);
+                    msgrcv(tickets_tbe_mgq_id, &ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);
 
                     printf("[DEBUG] Worker %d: Inizio servizio, durata: %d\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
                     sleep(tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
@@ -160,7 +185,7 @@ int main () {
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
 
                     printf("[DEBUG] Worker %d: Servizio completato\n", getpid());
-
+                    print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);
                     //DECIDE SE ANDARE IN PAUSA
                     if (aviable_breaks > 0) {
 
@@ -176,6 +201,7 @@ int main () {
                 }
             }
         }
+        printf("[Operatore] non ho trovato uno sportello disponibile, aspetto");
         sched_yield(); // cede la CPU ad altri processi pronti se ha ciclato fino all'ultimo seat e non ha trovato dove sedersi (non è al 100% efficiente e sensato ma dovrebbe funzionare)
     }
     printf("[DEBUG] Worker %d: Processo terminato in modo inaspettato\n", getpid());
