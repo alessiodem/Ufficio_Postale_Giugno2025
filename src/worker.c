@@ -128,15 +128,13 @@ void print_ticket(Ticket ticket) {
     printf("⏰ Request Time      : %ld.%09ld\n", ticket.request_time.tv_sec, ticket.request_time.tv_nsec);
     printf("⏱️  End Time          : %ld.%09ld\n", ticket.end_time.tv_sec, ticket.end_time.tv_nsec);
 
-    printf("✅ Served            : %s\n", ticket.served ? "Yes" : "No");
-    if (ticket.served) {
+    if (ticket.end_time.tv_sec != 0 || ticket.end_time.tv_nsec != 0) {
         printf("🏢 Desk ID           : %d\n", ticket.des_id);
         printf("👨‍💼 Operator ID      : %d\n", ticket.operator_id);
     }
 
     // Campi old version (se ancora rilevanti per debug)
     printf("🕒 Old Actual Time   : %d\n", ticket.actual_time);
-    printf("📍 Old Seat Index    : %d\n", ticket.seat_index);
     printf("✔️  Old is_done       : %d\n", ticket.is_done);
 
     printf("==================================\n");
@@ -169,42 +167,42 @@ int main () {
 
         for ( int i=0 ; i<config_shm_ptr->NOF_WORKER_SEATS; i++) {
             if (seats_shm_ptr[i].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[i].worker_sem_id, -1) == 0) {
-                printf("[DEBUG] Worker %d: Trovato posto libero %d\n", getpid(), i);
+                printf("[DEBUG] Operatore %d: Trovato posto libero %d\n", getpid(), i);
                 current_seat_index = i;
 
                 //EROGAZIONE SERVIZIO
                 while (1){
-                    printf("[DEBUG] Worker %d: In attesa di ticket da erogare del mio tipo di servizio \n", getpid());
+                    printf("[DEBUG] Operatore %d: In attesa di ticket da erogare del mio tipo di servizio \n", getpid());
 
                     Ticket_tbe_message ttbemsg;
                     msgrcv(tickets_tbe_mgq_id, &ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);
 
-                    printf("[DEBUG] Worker %d: Inizio servizio, durata: %d\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
+                    printf("[DEBUG] Operatore %d: Inizio servizio, durata: %d\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
                     sleep(tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
                     clock_gettime(CLOCK_MONOTONIC,&tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time);
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
 
-                    printf("[DEBUG] Worker %d: Servizio completato\n", getpid());
+                    printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
                     print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);
                     //DECIDE SE ANDARE IN PAUSA
                     if (aviable_breaks > 0) {
 
                         if ( P_BREAK > 0 && rand() % P_BREAK == 0 ) {
                             aviable_breaks--;
-                            printf("[DEBUG] Worker %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
+                            printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
                             go_on_break();
                         }
                         else {
-                            printf("[DEBUG] Worker %d: NON vado in pausa\n", getpid());
+                            printf("[DEBUG] Operatore %d: NON vado in pausa\n", getpid());
                         }
                     }
                 }
             }
         }
-        printf("[Operatore] non ho trovato uno sportello disponibile, aspetto\n");
+        //printf("[Operatore] non ho trovato uno sportello disponibile, aspetto\n");
         sched_yield(); // cede la CPU ad altri processi pronti se ha ciclato fino all'ultimo seat e non ha trovato dove sedersi (non è al 100% efficiente e sensato ma dovrebbe funzionare)
     }
-    printf("[DEBUG] Worker %d: Processo terminato in modo inaspettato\n", getpid());
+    printf("[DEBUG] Operatore %d: Processo terminato in modo inaspettato\n", getpid());
     return 0;
 
 }

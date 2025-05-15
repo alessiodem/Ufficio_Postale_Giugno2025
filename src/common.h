@@ -52,14 +52,11 @@ typedef struct {
     int user_id;                   // ID dell'utente
     int service_type;             // Tipo di servizio richiesto (es. 0 = anagrafe, 1 = tributi, ecc.)
     int actual_time;//old ver.
-    int seat_index;//old ver.
     int is_done; //old ver
 
     struct timespec request_time; // Quando l'utente ha richiesto il servizio
-    // struct timespec start_time;// Quando l’operatore ha iniziato a servire l’utente
     struct timespec end_time;     // Quando il servizio è stato completato
 
-    int served;                   // 1 = servito, 0 = non servito
     int day_number;               // Giorno della simulazione (1, 2, ..., SIM_DURATION)
 
     int des_id;                  // ID dello sportello dove è stato servito (se servito)

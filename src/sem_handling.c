@@ -92,7 +92,7 @@ int semaphore_do_not_wait(int sem_id,int custom_operation) {
         perror("Error during do not wait semaphore signal");
         exit(EXIT_FAILURE);
     }
-    printf("semop valore ritorno :%d/n", semop_return);
+    //printf("semop valore ritorno :%d/n", semop_return);
     return semop_return;
 }
 
