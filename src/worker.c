@@ -34,6 +34,12 @@ void handle_sig(int sig) {
         // pulire risorse
         // se serve terminare in modo pulito le risorse posso farlo qui
         // rimettersi in ready
+        if (current_seat_index >= 0) {
+            seats_shm_ptr[current_seat_index].state      = SEAT_FREE;
+            seats_shm_ptr[current_seat_index].worker_pid = 0;
+            semaphore_increment(seats_shm_ptr[current_seat_index].sem_id);
+            current_seat_index = -1;
+        }
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
     }else if (sig== SIGTERM) {
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
@@ -152,15 +158,23 @@ void set_ready() {
 }
 void go_on_break() {
     printf("[DEBUG] Operatore %d: Vado in pausa, abbandono il posto allo sportello\n", getpid());
-    semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
-    pause(); // aspetta la fine della giornata ENDDAY o della simulazione
-}
 
+    //segna lo sportello come libero
+    seats_shm_ptr[current_seat_index].state      = SEAT_FREE;
+    seats_shm_ptr[current_seat_index].worker_pid = 0;
+
+    //rilascia il semaforo dello sportello
+    semaphore_increment(seats_shm_ptr[current_seat_index].sem_id);
+
+    current_seat_index = -1;
+    pause(); // aspetta la fine della giornata ENDEDDAY o SIGTERM
+}
 int main () {
     setup_sigaction();
     setup_ipcs();
     aviable_breaks = config_shm_ptr->NOF_PAUSE;
     service_type = get_random_service_type();
+    current_seat_index = -1;
     sigsetjmp(jump_buffer, 1);//todo: capire se è necessario il controllo sul valore di ritorno di questa funzione
 
     set_ready();
@@ -168,9 +182,12 @@ int main () {
     while (1) {//questo endless loop serve per consentirgli di continuare a cercare un seat libero, è inefficente todo: se vogliamo farlo bene va sostituito con un sistema di segnali quando un seat si libera
 
         for ( int i=0 ; i<config_shm_ptr->NOF_WORKER_SEATS; i++) {
-            if (seats_shm_ptr[i].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[i].worker_sem_id, -1) == 0) {
+            if (seats_shm_ptr[i].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[i].sem_id, -1) == 0) {
                 printf("[DEBUG] Worker %d: Trovato posto libero %d\n", getpid(), i);
                 current_seat_index = i;
+
+                seats_shm_ptr[i].state      = SEAT_OCCUPIED;
+                seats_shm_ptr[i].worker_pid = getpid();
 
                 //EROGAZIONE SERVIZIO
                 while (1){

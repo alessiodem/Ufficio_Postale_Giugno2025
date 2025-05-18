@@ -195,7 +195,9 @@ void create_seats() {
     //printf("[DEBUG] Creazione posti...\n");
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         seats_shm_ptr[i].service_type = get_random_service_type();
-        seats_shm_ptr[i].worker_sem_id = create_semaphore_and_setval(IPC_PRIVATE,1,0666|IPC_CREAT,1);//todo: valutare la possibilità di gestire i semafori come array di semafori (viene fatto nativamente cambiando nsems)
+        seats_shm_ptr[i].state        = SEAT_FREE;
+        seats_shm_ptr[i].worker_pid   = 0;
+        seats_shm_ptr[i].sem_id       = create_semaphore_and_setval(IPC_PRIVATE, 1, 0666 | IPC_CREAT, 1);
     }
     printf("[DEBUG] Sportelli creati.\n");
 }
@@ -246,8 +248,11 @@ void setup_simulation(){
     create_ticket_dispenser();
 }
 void randomize_seats_service(){
-    for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++)
-        seats_shm_ptr[i].service_type=get_random_service_type();
+    for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
+        seats_shm_ptr[i].state        = SEAT_FREE;
+        seats_shm_ptr[i].worker_pid   = 0;
+        seats_shm_ptr[i].service_type = get_random_service_type();
+    }
 }
 
 
@@ -330,7 +335,7 @@ void free_memory() {
 
     // Rimozione dei semafori degli sportelli
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
-        semctl(seats_shm_ptr[i].worker_sem_id, 0, IPC_RMID);
+        semctl(seats_shm_ptr[i].sem_id, 0, IPC_RMID);
     }
     //todo: deallocare i semafori nei seats
 
