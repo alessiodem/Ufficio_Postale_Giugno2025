@@ -384,7 +384,7 @@ void term_children() {
 
 
 int main (int argc, char *argv[]){
-    print_process_life();
+    print_process_life();// se non funziona commenta questa riga
 
     //Alessandro ha aggiunto un metodo per pulire le ipc in questa riga, non so se vada effettivamente aggiunto perché il programma dovrebbe fare questo tipo di puliziadopo la fine della simulazione ma prima della fine dell'esecuzione del amager in modo da non lasciare risorse allocate quando non servono
     //è però possibile che la simulazione non venga terminata correttamente quindi forse ha senso inserirla

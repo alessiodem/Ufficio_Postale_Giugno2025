@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -O0 -g #-Wall
+CFLAGS := -O0 -g -Wall
 LDFLAGS := -lm # target link libraries
 BUILD_DIR := ./build
 

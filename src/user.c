@@ -181,9 +181,9 @@ int main(int argc, char *argv[]) {
 
             while (ticket.is_done==0)
                 sched_yield(); // cede la CPU ad altri processi pronti
-
+            //TODO: SOSTITUIRE IL WHILE SOPRA CON QUALCOSA DI PIÙ EFFICENTE
             printf("------- Utente %d: Servizio completato-------\n", getpid());
-            //todo: potrei stampare i dati del ticket erogato
+
             go_home();
         } else {
             printf("[DEBUG] Utente %d: Servizio non disponibile\n", getpid());
