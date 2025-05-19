@@ -235,7 +235,6 @@ void create_seats() {
 void create_workers() {
     //printf("[DEBUG] Creazione workers...\n");
 
-    char child_arg_index[16];
     char *child_argv[2];
     child_argv[0] = "worker";
     child_argv[1] = NULL;
@@ -247,7 +246,6 @@ void create_workers() {
 void create_users() {
     //printf("[DEBUG] Creazione utenti...\n");
 
-    char child_arg_index[16];
     char *child_argv[2];
     child_argv[0] = "user";
     child_argv[1] = NULL;

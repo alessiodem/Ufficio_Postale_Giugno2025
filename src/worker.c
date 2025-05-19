@@ -135,7 +135,7 @@ void print_ticket(Ticket ticket) {
     printf("⏱️️️⏱️⏱️  Time taken          : %f\n", ticket.time_taken);
 //todo: se riusciamno gestire in modo migliore  tempi (dargli il tempo in secondi e nanosecondi)
     if (ticket.end_time.tv_sec != 0 || ticket.end_time.tv_nsec != 0) {
-        printf("🏢 Desk index           : %d\n", ticket.desk_index);
+        printf("🏢 Desk index           : %d\n", ticket.seat_index);
         printf("👨‍💼 Operator ID      : %d\n", ticket.operator_id);
     }
 
@@ -195,7 +195,7 @@ int main () {
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken =tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_sec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_sec+tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec / 1e9 ;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id=getpid();
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number=day_passed;
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].desk_index=i;//todo: refactorare desk_index a seat_index
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index=i;//todo: refactorare desk_index a seat_index
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
                     print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);

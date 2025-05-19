@@ -60,7 +60,7 @@ typedef struct {
 
     int day_number;               // Giorno della simulazione (1, 2, ..., SIM_DURATION)
 
-    int desk_index;                  // ID dello sportello dove è stato servito (se servito)
+    int seat_index;                  // ID dello sportello dove è stato servito (se servito)
     int operator_id;              // ID dell’operatore che ha servito (se servito)
 
 }Ticket;
