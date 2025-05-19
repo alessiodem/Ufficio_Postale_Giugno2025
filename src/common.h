@@ -56,10 +56,11 @@ typedef struct {
 
     struct timespec request_time; // Quando l'utente ha richiesto il servizio
     struct timespec end_time;     // Quando il servizio è stato completato
+    double time_taken;
 
     int day_number;               // Giorno della simulazione (1, 2, ..., SIM_DURATION)
 
-    int des_id;                  // ID dello sportello dove è stato servito (se servito)
+    int desk_index;                  // ID dello sportello dove è stato servito (se servito)
     int operator_id;              // ID dell’operatore che ha servito (se servito)
 
 }Ticket;
@@ -70,6 +71,7 @@ typedef struct {
     pid_t requiring_user;
     ServiceType service_type;
     int ticket_index;
+    struct timespec request_time;
 }Ticket_request_message;
 
 
@@ -95,6 +97,7 @@ typedef struct{
     int N_NANO_SECS;
     int NOF_PAUSE;
 }Config;
+#define CONFIG_QTY 8
 
 //Analytic_tools non dovrebbe più essere necessario, forse va trovato un modo per contare le analytic: 12,13,14,15
 //MA, se vogliamo contare un operatore attivo se ha erogato almeno un ticket basta aggiungere un attibuto nel ticket che dice quale operatore ha erogato quel ticket e 12, 13 e 15 vengono risolti in quel modo

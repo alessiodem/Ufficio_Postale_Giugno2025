@@ -9,8 +9,8 @@
 #include <sys/shm.h>
 
 #include "common.h"
-#include "sem_handling.h"
-#include "utils.h"
+#include "../lib/sem_handling.h"
+#include "../lib/utils.h"
 
 //VARIABILI GLOBALI
 int children_ready_sync_sem_id;
@@ -157,17 +157,17 @@ int find_a_seat_index(ServiceType service_type) {
 }
 
 
-Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requiring_user_pid) {
+Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requiring_user_pid, struct timespec request_time) {
     printf("[DEBUG] Ticket Dispenser: Generazione ticket %d per servizio tipo %d\n", ticket_number, service_type);
 
     int average_time = get_average_time(service_type);
     Ticket ticket = {
         .ticket_index = ticket_number,
         .service_type = service_type,
-        .actual_time = generate_random_time(average_time),
-        .seat_index = find_a_seat_index(service_type),//todo:  queste funzioni potrebbero dare il problema di eccessiva roba nello stack di chiamate, capire se effettivamente è un problema
+        .actual_time = generate_random_time(average_time),//todo:  queste funzioni potrebbero dare il problema di eccessiva roba nello stack di chiamate, capire se effettivamente è un problema
         .is_done = 0,
-        .user_id =requiring_user_pid
+        .user_id =requiring_user_pid,
+        .request_time =request_time
     };
 
     printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo: %d\n",
@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
 
         printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
         //todo: il codice qui sarebbe più indicato sotto ma il generate ticket ma spostato all'interno di ttbemsg e conseguenti modifiche
-        Ticket ticket = generate_ticket(tmsg.service_type, ticket_index, tmsg.requiring_user);
+        Ticket ticket = generate_ticket(tmsg.service_type, ticket_index, tmsg.requiring_user,tmsg.request_time);
         tmsg.mtype = ticket.user_id;
         tickets_bucket_shm_ptr[ticket.ticket_index]=ticket;
         ticket_index++;

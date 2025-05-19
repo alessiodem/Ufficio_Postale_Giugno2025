@@ -8,8 +8,8 @@
 #include <sys/shm.h>
 
 #include "common.h"
-#include "sem_handling.h"
-#include "utils.h"
+#include "../lib/sem_handling.h"
+#include "../lib/utils.h"
 #include <sched.h>
 
 int children_ready_sync_sem_id;
@@ -19,11 +19,11 @@ Seat *seats_shm_ptr;
 Config *config_shm_ptr;
 Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
-int ticket_emanation_mgq_id;//todo: rimuovere ticket_emanation_mgq e tutto ciò che lo riguarda se ticket_tbe_mgq funziona
 int tickets_tbe_mgq_id;//tbe= to be erogated
 int current_seat_index;
 int aviable_breaks;
 int in_break = 0;
+int day_passed=0;
 
 ServiceType service_type;
 
@@ -31,6 +31,7 @@ ServiceType service_type;
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
         printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
+        day_passed++;
         // pulire risorse
         // se serve terminare in modo pulito le risorse posso farlo qui
         // rimettersi in ready
@@ -127,9 +128,10 @@ void print_ticket(Ticket ticket) {
 
     printf("⏰ Request Time      : %ld.%09ld\n", ticket.request_time.tv_sec, ticket.request_time.tv_nsec);
     printf("⏱️  End Time          : %ld.%09ld\n", ticket.end_time.tv_sec, ticket.end_time.tv_nsec);
+    printf("⏱️️️⏱️⏱️  Time taken          : %f\n", ticket.time_taken);
 
     if (ticket.end_time.tv_sec != 0 || ticket.end_time.tv_nsec != 0) {
-        printf("🏢 Desk ID           : %d\n", ticket.des_id);
+        printf("🏢 Desk index           : %d\n", ticket.desk_index);
         printf("👨‍💼 Operator ID      : %d\n", ticket.operator_id);
     }
 
@@ -179,8 +181,13 @@ int main () {
 
                     printf("[DEBUG] Operatore %d: Inizio servizio, durata: %d\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
                     sleep(tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
+
                     clock_gettime(CLOCK_MONOTONIC,&tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time);
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken =tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_sec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_sec+tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec / 1e9 ;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id=getpid();
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number=day_passed;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].desk_index=i;
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
                     print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);

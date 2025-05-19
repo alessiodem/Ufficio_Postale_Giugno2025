@@ -8,8 +8,8 @@
 #include <sys/shm.h>
 
 #include "common.h"
-#include "sem_handling.h"
-#include "utils.h"
+#include "../lib/sem_handling.h"
+#include "../lib/utils.h"
 
 //VARIABILI GLOBALI
 int children_ready_sync_sem_id;
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     if (decide_if_go()) {
         ServiceType service_type = get_random_service_type();
         printf("[DEBUG] Utente %d: Ho scelto il servizio tipo %d\n", getpid(), service_type);
-
+//todo: il processo utente non parte subito ma stabilisce un orario (sleeppa per un tempo casuale)
         if (check_for_service_availability(service_type)) {
             printf("[DEBUG] Utente %d: Servizio disponibile, calcolo tempo di attesa\n", getpid());
 
@@ -170,6 +170,7 @@ int main(int argc, char *argv[]) {
             trm.mtype = 2;
             trm.requiring_user = getpid();
             trm.service_type = service_type;
+            clock_gettime(CLOCK_MONOTONIC,&trm.request_time);
             if (msgsnd(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), 0)==-1) {
                 perror("Errore nell'invio della richiesta di ticket");
                 exit(EXIT_FAILURE);

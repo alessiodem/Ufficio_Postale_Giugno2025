@@ -10,8 +10,8 @@
 #include <sys/msg.h>
 
 #include "common.h"
-#include "sem_handling.h"
-#include "utils.h"
+#include "../lib/sem_handling.h"
+#include "../lib/utils.h"
 
 //VARIABILI GLOBALI
 struct timespec ts;
@@ -72,7 +72,39 @@ void __debug__print_todays_seats_service(){
     for (int i =0;  i<config_shm_ptr->NOF_WORKER_SEATS;i++)
         printf("[DEBUG]Lo sportello %d puo' erogare il servizio %d\n", i,seats_shm_ptr[i].service_type);
 }
+void _debug_print_configs(){
 
+    if (config_shm_ptr == NULL) {
+        fprintf(stderr, "Errore: puntatore Config nullo.\n");
+        return;
+    }
+
+    printf("Configurazione:\n");
+    printf("NOF_WORKERS: %d\n", config_shm_ptr->NOF_WORKERS);
+    printf("NOF_USERS: %d\n", config_shm_ptr->NOF_USERS);
+    printf("NOF_WORKER_SEATS: %d\n", config_shm_ptr->NOF_WORKER_SEATS);
+    printf("SIM_DURATION: %d\n", config_shm_ptr->SIM_DURATION);
+    printf("P_SERV_MIN: %.2f\n", config_shm_ptr->P_SERV_MIN);
+    printf("P_SERV_MAX: %.2f\n", config_shm_ptr->P_SERV_MAX);
+    printf("N_NANO_SECS: %d\n", config_shm_ptr->N_NANO_SECS);
+    printf("NOF_PAUSE: %d\n", config_shm_ptr->NOF_PAUSE);
+
+};
+void print_process_life() {
+    pid_t pid = getpid();
+
+    char command[256];
+
+    // Use xterm to run strace on the current PID
+    snprintf(command, sizeof(command),
+             "xterm -hold -e 'strace -p %d' &", pid);
+
+    int ret = system(command);
+    if (ret != 0) {
+        perror("Failed to launch xterm");
+    }
+
+}
 
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void setup_ipcs() {
@@ -351,7 +383,7 @@ void term_children() {
 
 
 int main (int argc, char *argv[]){
-
+    print_process_life();
 
     //Alessandro ha aggiunto un metodo per pulire le ipc in questa riga, non so se vada effettivamente aggiunto perché il programma dovrebbe fare questo tipo di puliziadopo la fine della simulazione ma prima della fine dell'esecuzione del amager in modo da non lasciare risorse allocate quando non servono
     //è però possibile che la simulazione non venga terminata correttamente quindi forse ha senso inserirla
@@ -371,11 +403,11 @@ int main (int argc, char *argv[]){
         exit(EXIT_FAILURE);
     }
     load_config(config_file);
-
+    printf("%d", getpid());
+    //sleep(10);
     setup_simulation();
-
-
     printf("[DEBUG] La simulazione sta per essere avviata.\n");
+    _debug_print_configs();
 
     for (int days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
         __debug__print_todays_seats_service();
