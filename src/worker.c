@@ -36,7 +36,7 @@ void handle_sig(int sig) {
         // se serve terminare in modo pulito le risorse posso farlo qui
         // rimettersi in ready
         if (current_seat_index >= 0) {
-            semaphore_increment(seats_shm_ptr[current_seat_index].sem_id);
+            semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
             current_seat_index = -1;
         }
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
@@ -159,7 +159,7 @@ void go_on_break() {
     printf("[DEBUG] Operatore %d: Vado in pausa, abbandono il posto allo sportello\n", getpid());
 
     //rilascia il semaforo dello sportello
-    semaphore_increment(seats_shm_ptr[current_seat_index].sem_id);
+    semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
 
     current_seat_index = -1;
     pause(); // aspetta la fine della giornata ENDEDDAY o SIGTERM

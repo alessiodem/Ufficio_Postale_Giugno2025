@@ -83,19 +83,11 @@ typedef struct{
 
 
 
-// Stato dello sportello 
-typedef enum {
-    SEAT_FREE     = 0,  //nessun operatore assegnato 
-    SEAT_OCCUPIED = 1,  //operatore al lavoro
-    SEAT_PAUSE    = 2   //operatore in pausa su questo sportello
-} SeatState;
 
 // Struttura completa dello sportello
 typedef struct {
     ServiceType service_type; //servizio assegnato per la giornata
-    pid_t       worker_pid;   //PID dell’operatore che lo occupa (0 se libero)
-    SeatState   state;        //libero occupato pausa
-    int         sem_id;       //id del semaforo che protegge l'accesso
+    int         worker_sem_id;       //id del semaforo che protegge l'accesso
 } Seat;
 
 
