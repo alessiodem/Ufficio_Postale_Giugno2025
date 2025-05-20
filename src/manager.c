@@ -29,7 +29,7 @@ int ticket_request_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
 
 //PROTOTIPI FUNZIONI
-
+void term_children();
 //FUNZIONI  AUSILIARIE
 // Funzione per aggiungere un PID alla lista dinamica
 void add_child_pid(pid_t child_pid) {
@@ -317,6 +317,7 @@ void print_end_simulation_output(char* end_cause, int day_passed) {
 void check_explode_threshold() {
     for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {
         if (i> config_shm_ptr->EXPLODE_THRESHOLD) {
+            term_children();
             print_end_simulation_output("EXPLODE THRESHOLD",days_passed-1);
             perror("terminato per threshold");
             exit(EXIT_FAILURE);

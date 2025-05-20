@@ -131,6 +131,12 @@ int decide_if_go() {
 
     return decision;
 }
+struct timespec generate_random_go_to_post_office_time() {
+    struct timespec ts;
+    ts.tv_sec = rand() % SECS_FOR_A_DAY;
+    ts.tv_nsec = rand() % 1000000000;
+    return ts;
+}
 int check_for_service_availability(ServiceType service_type) {
     printf("[DEBUG] Utente %d: Controllo disponibilità servizio tipo %d\n", getpid(), service_type);
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
@@ -156,6 +162,10 @@ int main(int argc, char *argv[]) {
     set_ready();
 
     if (decide_if_go()) {
+        struct timespec time_to_wait_before_going_to_post_office=generate_random_go_to_post_office_time();
+        printf("[DEBUG] Utente %d: aspettero %d,%d secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
+        nanosleep(&time_to_wait_before_going_to_post_office,NULL);
+        printf("[DEBUG] Utente %d: vado all'ufficio postale\n", getpid());
         ServiceType service_type = get_random_service_type();
         printf("[DEBUG] Utente %d: Ho scelto il servizio tipo %d\n", getpid(), service_type);
 //todo: il processo utente non parte subito ma stabilisce un orario (sleeppa per un tempo casuale)
