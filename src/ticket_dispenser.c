@@ -167,7 +167,8 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
         .actual_time = generate_random_time(average_time),//todo:  queste funzioni potrebbero dare il problema di eccessiva roba nello stack di chiamate, capire se effettivamente è un problema
         .is_done = 0,
         .user_id =requiring_user_pid,
-        .request_time =request_time
+        .request_time =request_time,
+        .end_time = {0,0}
     };
 
     printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo: %d\n",

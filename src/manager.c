@@ -17,6 +17,7 @@
 struct timespec ts;
 int no_children = 0;
 pid_t *child_pids = NULL;
+int days_passed;
 
 //IPCs
 Config *config_shm_ptr;
@@ -177,7 +178,6 @@ void setup_config(){
 }
 
 void load_config(FILE *config_file) {
-    int incorrect_config = 0;
     int read_lines = 0;
 
     char *line = malloc(LINE_BUFFER_SIZE * sizeof(char));
@@ -189,7 +189,7 @@ void load_config(FILE *config_file) {
         int value_int = strtoul(value, NULL, 10);
         double value_double = strtod(value, NULL);
         if ( value_int < 0 || value_double<0 || name == NULL || value == NULL) {
-            incorrect_config = 1;
+            printf("Errore nella lettura config 1");
             fclose(config_file);
             exit(EXIT_FAILURE);
         }
@@ -201,17 +201,17 @@ void load_config(FILE *config_file) {
         else if (strcmp(name, "P_SERV_MAX") == 0) config_shm_ptr->P_SERV_MAX = value_double;
         else if (strcmp(name, "N_NANO_SECS") == 0) config_shm_ptr->N_NANO_SECS = value_int;
         else if (strcmp(name, "NOF_PAUSE") == 0) config_shm_ptr->NOF_PAUSE = value_int;
+        else if (strcmp(name, "EXPLODE_THRESHOLD") == 0) config_shm_ptr->EXPLODE_THRESHOLD = value_int;
 
         else {
-            incorrect_config = 1;
             break;
         }
         read_lines++;
     }
     free(line);
-    if (incorrect_config == 1 ||config_shm_ptr->P_SERV_MAX>1||config_shm_ptr->P_SERV_MIN>config_shm_ptr->P_SERV_MAX||read_lines < 8) { //non può essere <0 per i controlli sopra
+    if (config_shm_ptr->P_SERV_MAX>1||config_shm_ptr->P_SERV_MIN>config_shm_ptr->P_SERV_MAX||read_lines < 9) { //non può essere <0 per i controlli sopra
         fclose(config_file);
-        printf("Errore nella lettura config");
+        printf("Errore nella lettura config 2");
         exit(EXIT_FAILURE);
     }
 }
@@ -302,6 +302,30 @@ void notify_day_ended(){
     // da implementare quando sappiamo come sono gestite le erogazioni
 }
 
+
+void print_end_simulation_output(char* end_cause, int day_passed) {
+    printf("\n========================================\n");
+    printf("          FINE SIMULAZIONE\n");
+    printf("========================================\n");
+    printf("📅 Ultimo giorno simulato : %d\n", day_passed);
+    printf("🛑 Causa terminazione     : %s\n", end_cause);
+    printf("----------------------------------------\n");
+    printf("📊 Statistiche finali:\n");
+    // print_analytics(); // TODO: scrivere la funzione che stampa le analytics
+    printf("========================================\n\n");
+}
+void check_explode_threshold() {
+    for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {
+        if (i> config_shm_ptr->EXPLODE_THRESHOLD) {
+            print_end_simulation_output("EXPLODE THRESHOLD",days_passed-1);
+            perror("terminato per threshold");
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+
+
 //FUNZIONI DI PULIZIA
 void reset_resources(){
     //todo: pulirelr sltre risorse
@@ -325,10 +349,13 @@ void reset_resources(){
     if (errno != ENOMSG) {
         perror("[ERRORE] Errore nello svuotamento della message queue tickets_tbe_mgq_id");
     }
-
-
+    //todo: deallocare semafori create con sem handling
+    printf("[DEBUG] Direttore: risorse pulite");
 }
 void free_memory() {
+
+    //todo: deallocare semafori create con sem handling
+
     // Libera memoria allocata dinamicamente
     free(child_pids);
 
@@ -382,7 +409,7 @@ void term_children() {
 
 
 int main (int argc, char *argv[]){
-    print_process_life();// se non funziona commenta questa riga
+    //print_process_life();// se non funziona commenta questa riga
 
     //Alessandro ha aggiunto un metodo per pulire le ipc in questa riga, non so se vada effettivamente aggiunto perché il programma dovrebbe fare questo tipo di puliziadopo la fine della simulazione ma prima della fine dell'esecuzione del amager in modo da non lasciare risorse allocate quando non servono
     //è però possibile che la simulazione non venga terminata correttamente quindi forse ha senso inserirla
@@ -407,16 +434,18 @@ int main (int argc, char *argv[]){
     setup_simulation();
     printf("[DEBUG] La simulazione sta per essere avviata.\n");
     _debug_print_configs();
-
-    for (int days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
+    int days_passed;
+    for (days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
         __debug__print_todays_seats_service();
         //todo: TOTEST
         wait_to_all_children_be_ready();
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
         nanosleep(&ts, NULL);
+
         //todo: TOTEST
         notify_day_ended();
         //todo: TOTEST
+        check_explode_threshold();
         randomize_seats_service();
         //todo: TOTEST
         reset_resources();
@@ -429,7 +458,9 @@ int main (int argc, char *argv[]){
     //todo: TOTEST
     term_children();
     //todo: TOTEST
-    free_memory();
+    //free_memory();
+
+    print_end_simulation_output("NESSUN ERRORE",days_passed-1);
 
 
     return 0;

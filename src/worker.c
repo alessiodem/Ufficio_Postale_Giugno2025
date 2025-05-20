@@ -156,7 +156,8 @@ void set_ready() {
     printf("[DEBUG] Operatore %d: Sto iniziando una nuova giornata\n", getpid());
 }
 void go_on_break() {
-    printf("[DEBUG] Operatore %d: Vado in pausa, abbandono il posto allo sportello\n", getpid());
+
+    printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
 
     //rilascia il semaforo dello sportello
     semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
@@ -204,7 +205,6 @@ int main () {
 
                         if ( P_BREAK > 0 && rand() % P_BREAK == 0 ) {
                             aviable_breaks--;
-                            printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
                             go_on_break();
                         }
                         else {

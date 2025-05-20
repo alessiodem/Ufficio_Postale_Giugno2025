@@ -121,10 +121,10 @@ int decide_if_go() {
 
     // Calcolo della probabilità casuale tra P_SERV_MIN e P_SERV_MAX
     double range = config_shm_ptr->P_SERV_MAX - config_shm_ptr->P_SERV_MIN;
-    double P_SERV = config_shm_ptr->P_SERV_MIN + ((double)rand() / RAND_MAX) * range;
+    double p_serv = config_shm_ptr->P_SERV_MIN + ((double)rand() / RAND_MAX) * range;
 
     // Generazione della decisione basata su P_SERV
-    int decision = ((double)rand() / RAND_MAX <= P_SERV);
+    int decision = ((double)rand() / RAND_MAX <= p_serv);
 
     // Stampa del risultato
     printf("[DEBUG] Utente %d: Decisione: %s\n", getpid(), decision ? "vado" : "resto a casa");
