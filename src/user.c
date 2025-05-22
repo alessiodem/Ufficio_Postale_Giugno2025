@@ -26,24 +26,19 @@ void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
         printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
 
-
-        // pulire risorse
-        // se serve terminare in modo pulito le risorse posso farlo qui
-        // rimettersi in ready
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
     }else if (sig== SIGTERM) {
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
-        //fflush(stdout); todo: capire se questa cosa serve tramite dei test
-        exit(0);
+        exit(EXIT_SUCCESS);
     }
 }
 void setup_sigaction(){
     struct sigaction sa;
     sa.sa_handler = handle_sig;
-    sigemptyset(&sa.sa_mask);  // Nessun segnale bloccato durante l'esecuzione dell'handler
+    sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
 
     if (sigaction(SIGTERM, &sa, NULL) == -1) {
@@ -107,7 +102,6 @@ void setup_ipcs() {
     printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
 }
 
-
 //FUNZIONI DI FLOW PRINCIPALE
 void set_ready() {
     printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
@@ -115,7 +109,6 @@ void set_ready() {
     semaphore_do(children_go_sync_sem_id, 0);
     printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
 }
-
 int decide_if_go() {
     printf("[DEBUG] Utente %d: Decido se andare oggi\n", getpid());
 
@@ -146,13 +139,12 @@ int check_for_service_availability(ServiceType service_type) {
     }
     return 0;
 }
-// go_home aspetta l'inizio della prossima giornata
 void go_home() {
     printf("[DEBUG] Utente %d: Tornato a casa\n", getpid());
     pause(); // aspetta la fine della giornata ENDDAY o della simulazione
 }
 
-//tutto da testare
+//MAIN
 int main(int argc, char *argv[]) {
     setup_sigaction();
     srand(getpid());
@@ -171,8 +163,7 @@ int main(int argc, char *argv[]) {
         if (check_for_service_availability(service_type)) {
             printf("[DEBUG] Utente %d: Servizio disponibile, calcolo tempo di attesa\n", getpid());
 
-        ///RICHIEDE IL TICKET
-        // ex funzione get_ticket(ServiceType service_type)
+            ///RICHIEDE IL TICKET
             printf("[DEBUG] Utente %d: Richiedo ticket per servizio tipo %d\n", getpid(), service_type);
             Ticket_request_message trm;
             trm.mtype = 2;
@@ -184,12 +175,15 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
 
+            ///RICEVE IL TICKET
             msgrcv(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), getpid(), 0);
             Ticket ticket = tickets_bucket_shm_ptr[trm.ticket_index];
+            printf("[DEBUG] Utente %d: Ho ricevuto il ticket per il servizio richiesto, attendo l'erogazione\n", getpid());
 
             while (ticket.is_done==0)
                 sched_yield(); // cede la CPU ad altri processi pronti
             //TODO: SOSTITUIRE IL WHILE SOPRA CON QUALCOSA DI PIÙ EFFICENTE
+
             printf("------- Utente %d: Servizio completato-------\n", getpid());
 
             go_home();

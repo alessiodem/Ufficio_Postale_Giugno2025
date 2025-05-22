@@ -37,22 +37,20 @@ void handle_sig(int sig) {
             current_seat_index = -1;
         }
 
-        siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
+        siglongjmp(jump_buffer, 1);
 
     }else if (sig== SIGTERM) {
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
-        //fflush(stdout); todo: capire se questa riga serve tramite dei test
         exit(0);
     }
 }
 void setup_sigaction(){
-    //todo: forse serve isolare i segnali che mi servono(ENDDAY  e SIGTERM) ed escludere gli altri
     struct sigaction sa;
     sa.sa_handler = handle_sig;
-    sigemptyset(&sa.sa_mask);  // Nessun segnale bloccato durante l'esecuzione dell'handler
+    sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
 
     if (sigaction(SIGTERM, &sa, NULL) == -1) {
@@ -139,9 +137,9 @@ void print_ticket(Ticket ticket) {
     }
 
     // Campi old version (se ancora rilevanti per debug)
-    printf("🕒 Old Actual Time   : %d\n", ticket.actual_time);
-    printf("📍 Old Seat Index    : %d\n", ticket.seat_index);//todo: controllare perché alessio ha eliminato questa riga
-    printf("✔️  Old is_done       : %d\n", ticket.is_done);
+    printf("🕒  Actual Time   : %d\n", ticket.actual_time);
+    printf("📍  Seat Index    : %d\n", ticket.seat_index);
+    printf("✔️  Is_done       : %d\n", ticket.is_done);
 
     printf("==================================\n");
 }
@@ -158,7 +156,6 @@ void go_on_break() {
 
     printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
 
-    //rilascia il semaforo dello sportello
     semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
 
     current_seat_index = -1;
@@ -170,7 +167,7 @@ int main () {
     aviable_breaks = config_shm_ptr->NOF_PAUSE;
     service_type = get_random_service_type();
     current_seat_index = -1;
-    sigsetjmp(jump_buffer, 1);//todo: capire se è necessario il controllo sul valore di ritorno di questa funzione
+    sigsetjmp(jump_buffer, 1);
 
     set_ready();
 
@@ -195,10 +192,11 @@ int main () {
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken =tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_sec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_sec+tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec / 1e9 ;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id=getpid();
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number=day_passed;
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index=i;//todo: refactorare desk_index a seat_index
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index=i;
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
                     print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);
+
                     //DECIDE SE ANDARE IN PAUSA
                     if (aviable_breaks > 0) {
 
@@ -206,10 +204,9 @@ int main () {
                             aviable_breaks--;
                             go_on_break();
                         }
-                        else {
-                            printf("[DEBUG] Operatore %d: NON vado in pausa\n", getpid());
-                        }
+
                     }
+                    printf("[DEBUG] Operatore %d: NON vado in pausa\n", getpid());
                 }
             }
         }
