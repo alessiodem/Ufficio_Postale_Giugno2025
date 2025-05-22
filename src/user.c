@@ -163,18 +163,16 @@ int main(int argc, char *argv[]) {
 
     if (decide_if_go()) {
         struct timespec time_to_wait_before_going_to_post_office=generate_random_go_to_post_office_time();
-        printf("[DEBUG] Utente %d: aspettero %d,%d secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
+        printf("[DEBUG] Utente %d: aspettero %ld,%ld secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
         nanosleep(&time_to_wait_before_going_to_post_office,NULL);
         printf("[DEBUG] Utente %d: vado all'ufficio postale\n", getpid());
         ServiceType service_type = get_random_service_type();
         printf("[DEBUG] Utente %d: Ho scelto il servizio tipo %d\n", getpid(), service_type);
-//todo: il processo utente non parte subito ma stabilisce un orario (sleeppa per un tempo casuale)
         if (check_for_service_availability(service_type)) {
             printf("[DEBUG] Utente %d: Servizio disponibile, calcolo tempo di attesa\n", getpid());
 
         ///RICHIEDE IL TICKET
-        //TODO: rivedere la '''funzione''' sotto con la nuova versione di Ticket quando definiremo i Ticket
-        // get_ticket(ServiceType service_type)
+        // ex funzione get_ticket(ServiceType service_type)
             printf("[DEBUG] Utente %d: Richiedo ticket per servizio tipo %d\n", getpid(), service_type);
             Ticket_request_message trm;
             trm.mtype = 2;

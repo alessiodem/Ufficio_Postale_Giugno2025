@@ -32,14 +32,13 @@ void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
         printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
         day_passed++;
-        // pulire risorse
-        // se serve terminare in modo pulito le risorse posso farlo qui
-        // rimettersi in ready
         if (current_seat_index >= 0) {
             semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
             current_seat_index = -1;
         }
+
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
+
     }else if (sig== SIGTERM) {
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
