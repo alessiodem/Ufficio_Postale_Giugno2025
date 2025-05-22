@@ -15,7 +15,6 @@ int create_semaphore(key_t key, int num_sems, int sem_flags) {
     }
     return sem_id;
 }
-//todo: testare create_semaphore_and_setval
 int create_semaphore_and_setval(key_t key, int num_sems, int sem_flags, int val) {
     int sem_id = semget(key, num_sems, sem_flags);
     if (sem_id == -1) {

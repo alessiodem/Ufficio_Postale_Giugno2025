@@ -2,9 +2,8 @@
 #define COMMON_H
 
 //Librerie
-#define _GNU_SOURCE
+#define _GNU_SOURCE //todo: capire che è sta roba e a che serve (è richiesto dalla traccia)
 #include <semaphore.h>
-#include <sys/types.h>
 #include <time.h>
 
 //IPC keys
@@ -46,8 +45,6 @@ typedef struct {
     int average_time;
 } Service;
 
-//todo: TIcket potrebbe venire stato cambiato rispetto all progetto x gennaio, andreanno cambiate un po' di robe nell'utilizzo se decidiamo di cambiarlo
-//todo: il cambiamento principale starebbe nel fatto che prima il ticket veniva usato dallo user, adesso viene mandato direttamente al worker
 typedef struct {
     int ticket_index;                 // ID univoco del ticket
     int user_id;                   // ID dell'utente
@@ -65,7 +62,6 @@ typedef struct {
     int operator_id;              // ID dell’operatore che ha servito (se servito)
 
 }Ticket;
-#define NO_TICKET_ATTRIBUTES 12
 
 typedef struct {
     long mtype;// 1= ticket creato,2= richiesta
@@ -80,7 +76,6 @@ typedef struct{
     long mtype;// 1 erogato,2 richiesta
     int ticket_index;
 }Ticket_tbe_message;
-//todo (se serve): Sembuf,
 
 
 
@@ -103,10 +98,5 @@ typedef struct{
     int NOF_PAUSE;
     int EXPLODE_THRESHOLD;
 }Config;
-#define CONFIG_QTY 8
-
-//Analytic_tools non dovrebbe più essere necessario, forse va trovato un modo per contare le analytic: 12,13,14,15
-//MA, se vogliamo contare un operatore attivo se ha erogato almeno un ticket basta aggiungere un attibuto nel ticket che dice quale operatore ha erogato quel ticket e 12, 13 e 15 vengono risolti in quel modo
-
 
 #endif //COMMON_H
