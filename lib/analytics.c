@@ -61,7 +61,6 @@ extern Config  *config_shm_ptr;           //definita in manager.c
 #define KEY_BREAK_MGQ 0x11111110
 #endif
 
-typedef struct { long mtype; pid_t worker; } BreakMsg;
 static int break_mq_id = -1;
 
 //Stato interno al modulo
@@ -153,9 +152,8 @@ analytics_compute(int current_day){
         //conta utente servito / non servito
         if (t->is_done) {       //vale true se il ticket è stato servito da un operatore.
             //tempo di attesa: total - erogazione
-            double wait_time = timespec_to_seconds(t->time_taken)
-                             - timespec_to_seconds(t->actual_time);
-            double service_t = timespec_to_seconds(t->actual_time);
+            double wait_time = t->time_taken - t->actual_time;
+            double service_t = t->actual_time;
 
             if (is_today) {
                 ++day_sv->served;
@@ -202,7 +200,7 @@ analytics_compute(int current_day){
 
     //consuma tutti i messaggi di pausa arrivati durante la giornata
     if (break_mq_id != -1) {
-        BreakMsg bm;
+        Break_message bm;
         //leggi fino a svuotare
         while (msgrcv(break_mq_id, &bm, sizeof(pid_t), 0, IPC_NOWAIT) != -1)
             ++today_stats.pauses;
