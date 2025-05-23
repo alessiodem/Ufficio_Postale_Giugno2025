@@ -26,8 +26,8 @@
 #define NSECS_FOR_A_DAY ((480 * config_shm_ptr->N_NANO_SECS) % 1000000000)
 #define LINE_BUFFER_SIZE (1024)
 #define P_BREAK (10) //probabilità 1/10 todo: così è gestita in modo brutto, sistemare o nascondere questa macro
-#define CONFIG_MAX_SEATS    64
-#define CONFIG_MAX_WORKERS  64
+#define CONFIG_MAX_SEATS (64)
+#define CONFIG_MAX_WORKERS (64)
 
 
 //TypeDefs
@@ -50,7 +50,7 @@ typedef struct {
     int ticket_index;                 // ID univoco del ticket
     int user_id;                   // ID dell'utente
     int service_type;             // Tipo di servizio richiesto (es. 0 = anagrafe, 1 = tributi, ecc.)
-    int actual_time;//old ver.
+    double actual_time;//old ver.
     int is_done; //old ver
 
     struct timespec request_time; // Quando l'utente ha richiesto il servizio

@@ -142,7 +142,7 @@ void setup_ipcs() {
     }
     seats_shm_ptr = shmat(seats_shm_id, NULL, 0);
     if (seats_shm_ptr == (void *)-1) {
-        perror("[ERROR] shmat() per seats_shm fallito");
+        perror("[ERROR] shmat() per seats_shm fallito per seats_shm_ptr");
         exit(EXIT_FAILURE);
     }
     int tickets_bucket_shm_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket) * config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION, EXCLUSIVE_CREATE_FLAG);
@@ -152,7 +152,7 @@ void setup_ipcs() {
     }
     tickets_bucket_shm_ptr = shmat(tickets_bucket_shm_id, NULL, 0);
     if (tickets_bucket_shm_ptr == (void *)-1) {
-        perror("[ERROR] shmat() per seats_shm fallito");
+        perror("[ERROR] shmat() per seats_shm fallito per tickets_bucket_shm_ptr");
         exit(EXIT_FAILURE);
     }
     ticket_request_msg_id = msgget(KEY_TICKET_REQUEST_MGQ, EXCLUSIVE_CREATE_FLAG);
@@ -342,7 +342,7 @@ void print_end_simulation_output(char* end_cause, int day_passed) {
     printf("🛑 Causa terminazione     : %s\n", end_cause);
     printf("----------------------------------------\n");
     printf("📊 Statistiche finali:\n");
-    analytics_print(days_passed);
+    //analytics_print(days_passed);
     printf("========================================\n\n");
 }
 void check_explode_threshold() {
@@ -472,8 +472,8 @@ int main (int argc, char *argv[]){
 
         notify_day_ended();
 
-        analytics_compute(days_passed);
-        analytics_print(days_passed);
+        //analytics_compute(days_passed);
+        //analytics_print(days_passed);
 
         check_explode_threshold();
         randomize_seats_service();
@@ -482,12 +482,12 @@ int main (int argc, char *argv[]){
 
         //read_and_print_analytics(); //todo:implementare dopo che abbiamo la gestione delle erogazioni
 
-        printf("[DEBUG] Giorno %d terminato.\n", days_passed);
+        printf("\n==============================\n==============================\n\n [DEBUG] Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
     }
 
     printf("[DEBUG] Simulazione terminata.\n");
 
-    analytics_finalize();
+    //analytics_finalize();
     term_children();
     free_memory();
 

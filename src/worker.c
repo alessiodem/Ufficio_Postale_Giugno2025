@@ -142,7 +142,7 @@ void print_ticket(Ticket ticket) {
     }
 
     // Campi old version (se ancora rilevanti per debug)
-    printf("🕒  Actual Time   : %d\n", ticket.actual_time);
+    printf("🕒  Actual Time   : %f\n", ticket.actual_time);
     printf("✔️  Is_done       : %d\n", ticket.is_done);
 
     printf("==================================\n");
@@ -197,11 +197,11 @@ int main () {
                     Ticket_tbe_message ttbemsg;
                     msgrcv(tickets_tbe_mgq_id, &ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);
 
-                    printf("[DEBUG] Operatore %d: Inizio servizio, durata: %d\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
+                    printf("[DEBUG] Operatore %d: Inizio servizio, durata: %f\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
 
                     struct timespec erogation_time = {
-                        .tv_sec = (tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS) / 1000000000,
-                        .tv_nsec = (tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS) % 1000000000
+                        .tv_sec = (tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS)*config_shm_ptr->N_NANO_SECS / 1000000000,
+                        .tv_nsec = (int)((tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS)*config_shm_ptr->N_NANO_SECS) % 1000000000
                     };
                     nanosleep(&erogation_time,NULL);
 

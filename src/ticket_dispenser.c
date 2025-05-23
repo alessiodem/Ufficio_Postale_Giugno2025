@@ -127,14 +127,13 @@ void set_ready() {
     semaphore_do(children_go_sync_sem_id, 0);
     printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
 }
-int generate_random_time(int average_time) {
+double generate_random_time(int average_time) {
     printf("[DEBUG] Ticket Dispenser: Generazione tempo casuale. Media: %d\n", average_time);
-    int max_variation = average_time / 2;
-    int variation = (rand() % (2 * max_variation + 1)) - max_variation;
-    int actual_time = average_time + variation;
-    int result = actual_time > 0 ? actual_time : 1;
-    printf("[DEBUG] Ticket Dispenser: Tempo generato: %d\n", result);
-    return result;
+    double max_variation = average_time / 2;
+    double variation = (rand() % (int)(2 * max_variation + 1)) - max_variation;
+    double actual_time = average_time + variation;
+    printf("[DEBUG] Ticket Dispenser: Tempo generato: %f\n", actual_time);
+    return actual_time;
 }
 
 //todo: potremmo trovare un modo migliore rispetto a questo
@@ -164,10 +163,7 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
     int average_time = get_average_time(service_type);
 
     /* converti il tempo medio generato (in secondi) in struct timespec */
-    struct timespec actual_ts = {
-        .tv_sec  = generate_random_time(average_time),
-        .tv_nsec = 0
-    };
+    double actual_ts = generate_random_time(average_time);
 
     Ticket ticket = {
         .ticket_index = ticket_number,
@@ -178,8 +174,8 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
         .request_time = request_time
     };
 
-    printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo: %ld\n",
-           ticket.ticket_index, ticket.actual_time.tv_sec);
+    printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo: %f\n",
+           ticket.ticket_index, ticket.actual_time);
     return ticket;
 }
 

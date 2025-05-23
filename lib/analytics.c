@@ -49,17 +49,11 @@ analytics_print(int current_day)        •	Stampa un report giornaliero, che in
 #include <errno.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-#include <time.h>
 #include <stdbool.h>
 
 //Dipendenze esterne (shared memory create altrove)
 extern Ticket  *tickets_bucket_shm_ptr;   //definita in manager.c
 extern Config  *config_shm_ptr;           //definita in manager.c
-
-//IPC per la segnalazione delle pause
-#ifndef KEY_BREAK_MGQ
-#define KEY_BREAK_MGQ 0x11111110
-#endif
 
 static int break_mq_id = -1;
 
@@ -81,16 +75,10 @@ static bool     seen_op_seat[CONFIG_MAX_SEATS][CONFIG_MAX_WORKERS]; //chi ha lav
 //operatori visti nella simulazione
 static bool *seen_operator_sim = NULL;    //lunghezza NOF_WORKERS
 
-//Helper locali
-//trasforma una struttura timespec in secondi
-static inline double                            //inline È un suggerimento al compilatore: se possibile, inserisci direttamente il codice della funzione invece di fare una “chiamata”.
-timespec_to_seconds(struct timespec ts){
-    return (double)ts.tv_sec + ts.tv_nsec * 1e-9;
-}
 
 //Trasforma un PID in un indice tra 0 e NOF_WORKERS-1.
-static inline size_t
-pid_to_index(pid_t p){
+static inline
+size_t pid_to_index(pid_t p){
     return ((size_t)p) % (size_t)config_shm_ptr->NOF_WORKERS;  // la conversione di pid_t in size_t, quindi in un intero positivo serve perche' anche se raramente i pid possono essere negativi
 }
 
@@ -268,11 +256,11 @@ analytics_print(int current_day)
     printf("Sportello %2d : %u operatore/i\n", s, ops_per_seat[s]);
 
     printf("\n--- Rapporto operatori/sportello (oggi) ---\n");
-    for (int s = 0; s < config_shm_ptr->NOF_WORKER_SEATS; ++s) {
-    double ratio = today_stats.unique_operators ?
+    for (int s = 0; s < config_shm_ptr->NOF_WORKER_SEATS; s++) {
+        double ratio = today_stats.unique_operators ?
                    (double)ops_per_seat[s] / today_stats.unique_operators * 100.0
                    : 0.0;
-    printf("Seat %2d : %u op / %ld tot (%.1f%%)\n",
+        printf("Seat %2d : %u op / %ld tot (%.1f%%)\n",
            s, ops_per_seat[s], today_stats.unique_operators, ratio);
     }
 
