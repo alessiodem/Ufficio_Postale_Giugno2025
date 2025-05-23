@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
 
     if (decide_if_go()) {
         struct timespec time_to_wait_before_going_to_post_office=generate_random_go_to_post_office_time();
-        printf("[DEBUG] Utente %d: aspettero %ld,%ld secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
+        printf("[DEBUG] Utente %d: aspettero' %ld,%ld secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
         nanosleep(&time_to_wait_before_going_to_post_office,NULL);
         printf("[DEBUG] Utente %d: vado all'ufficio postale\n", getpid());
         ServiceType service_type = get_random_service_type();
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
             trm.mtype = 2;
             trm.requiring_user = getpid();
             trm.service_type = service_type;
-            clock_gettime(CLOCK_MONOTONIC,&trm.request_time);
+            clock_gettime(CLOCK_REALTIME,&trm.request_time);
             if (msgsnd(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), 0)==-1) {
                 perror("Errore nell'invio della richiesta di ticket");
                 exit(EXIT_FAILURE);

@@ -14,7 +14,6 @@
 #define KEY_USERS_SEAT_SEM (0x22222220)
 #define KEY_SYNC_START_SEM (0x22222202)
 #define KEY_SYNC_CHILDREN_START_SEM (0x22222200)
-#define KEY_
 #define KEY_SEATS_SHM (0x33333333)
 #define KEY_CONFIG_SHM (0x33333330)
 #define KEY_TICKETS_BUCKET_SHM (0x33333303)
@@ -22,8 +21,8 @@
 //Macro
 #define EXCLUSIVE_CREATE_FLAG (0666|IPC_CREAT|IPC_EXCL)
 #define ENDEDDAY (SIGUSR1)
-#define SECS_FOR_A_DAY (480 * config_shm_ptr->N_NANO_SECS / 1000000)//todo: per oea è gestito in micro ssecondi perchè altrimenti la iornata è troppo corta per qualche motivo
-#define NSECS_FOR_A_DAY ((480 * config_shm_ptr->N_NANO_SECS) % 1000000)
+#define SECS_FOR_A_DAY (480 * config_shm_ptr->N_NANO_SECS / 1000000000)//todo: per oea è gestito in micro ssecondi perchè altrimenti la iornata è troppo corta per qualche motivo
+#define NSECS_FOR_A_DAY ((480 * config_shm_ptr->N_NANO_SECS) % 1000000000)
 #define LINE_BUFFER_SIZE (1024)
 #define P_BREAK (10) //probabilità 1/10 todo: così è gestita in modo brutto, sistemare o nascondere questa macro
 
@@ -94,7 +93,7 @@ typedef struct{
     int SIM_DURATION;
     double P_SERV_MIN;
     double P_SERV_MAX;
-    int N_NANO_SECS;
+    unsigned long  N_NANO_SECS;
     int NOF_PAUSE;
     int EXPLODE_THRESHOLD;
 }Config;

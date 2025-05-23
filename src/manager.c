@@ -88,7 +88,7 @@ void debug__print__configs(){
     printf("SIM_DURATION: %d\n", config_shm_ptr->SIM_DURATION);
     printf("P_SERV_MIN: %.2f\n", config_shm_ptr->P_SERV_MIN);
     printf("P_SERV_MAX: %.2f\n", config_shm_ptr->P_SERV_MAX);
-    printf("N_NANO_SECS: %d\n", config_shm_ptr->N_NANO_SECS);
+    printf("N_NANO_SECS: %ld\n", config_shm_ptr->N_NANO_SECS);
     printf("NOF_PAUSE: %d\n", config_shm_ptr->NOF_PAUSE);
 
 };
@@ -320,15 +320,10 @@ void check_explode_threshold() {
             term_children();
             free_memory();
             print_end_simulation_output("EXPLODE THRESHOLD",days_passed-1);
-            perror("terminato per threshold");
             exit(EXIT_FAILURE);
         }
     }
 }
-void print_messages_in_queue() {
-
-}
-
 
 //FUNZIONI DI PULIZIA
 void reset_resources(){
@@ -431,7 +426,6 @@ int main (int argc, char *argv[]){
     }
     load_config(config_file);
     printf("%d", getpid());
-    //sleep(10);
     setup_simulation();
     printf("[DEBUG] La simulazione sta per essere avviata.\n");
     debug__print__configs();
