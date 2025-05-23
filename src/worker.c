@@ -10,9 +10,9 @@
 #include "common.h"
 #include "../lib/sem_handling.h"
 #include "../lib/utils.h"
-
 #include <sched.h>
 
+//todo: da spostare
 #ifndef KEY_BREAK_MGQ
 #define KEY_BREAK_MGQ 0x11111110
 #endif
@@ -29,53 +29,36 @@ Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
 int current_seat_index;
-int available_breaks; // Numero massimo di pause disponibili per questo operatoredurante l'intera simulazione.  Viene inizializzato in `main()` con il valore NOF_PAUSE letto dalla configurazione
+int aviable_breaks;
 int in_break = 0;
 int day_passed=0;
 
 ServiceType service_type;
-
-/* Ritorna end-start normalizzato (tv_nsec sempre positivo) */
-static struct timespec
-timespec_diff(struct timespec end, struct timespec start)
-{
-    struct timespec out;
-    out.tv_sec  = end.tv_sec  - start.tv_sec;
-    out.tv_nsec = end.tv_nsec - start.tv_nsec;
-    if (out.tv_nsec < 0) {
-        out.tv_nsec += 1000000000L;
-        --out.tv_sec;
-    }
-    return out;
-}
 
 //FUNZIONI DI SETUP
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
         printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
         day_passed++;
-        // pulire risorse
-        // se serve terminare in modo pulito le risorse posso farlo qui
-        // rimettersi in ready
         if (current_seat_index >= 0) {
             semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
             current_seat_index = -1;
         }
-        siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
+
+        siglongjmp(jump_buffer, 1);
+
     }else if (sig== SIGTERM) {
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
-        //fflush(stdout); todo: capire se questa riga serve tramite dei test
         exit(0);
     }
 }
 void setup_sigaction(){
-    //todo: forse serve isolare i segnali che mi servono(ENDDAY  e SIGTERM) ed escludere gli altri
     struct sigaction sa;
     sa.sa_handler = handle_sig;
-    sigemptyset(&sa.sa_mask);  // Nessun segnale bloccato durante l'esecuzione dell'handler
+    sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
 
     if (sigaction(SIGTERM, &sa, NULL) == -1) {
@@ -120,11 +103,11 @@ void setup_ipcs() {
         perror("[ERROR] msgget() per ticket_tbe_mgq_id fallito");
         exit(EXIT_FAILURE);
     }
-
+//inizializzare nel manager
     //l worker cerca di collegarsi alla message queue per le pause
     break_mgq_id = msgget(KEY_BREAK_MGQ, 0666);
     if (break_mgq_id == -1) {
-        perror("[WARN] msgget() break_mgq_id fallito");
+        perror("[ERROR] msgget() break_mgq_id fallito");
         //la simulazione continua, ma le pause non verranno conteggiate
     }
     int seats_shm_id = shmget(KEY_SEATS_SHM, sizeof(Seat) * config_shm_ptr->NOF_WORKER_SEATS, 0666);
@@ -161,8 +144,7 @@ void print_ticket(Ticket ticket) {
 
     printf("⏰ Request Time      : %ld.%09ld\n", ticket.request_time.tv_sec, ticket.request_time.tv_nsec);
     printf("⏱️  End Time          : %ld.%09ld\n", ticket.end_time.tv_sec, ticket.end_time.tv_nsec);
-    printf("⏱️ Time taken          : %ld.%09ld\n",
-       ticket.time_taken.tv_sec, ticket.time_taken.tv_nsec);
+    printf("⏱️️️⏱️⏱️  Time taken          : %f\n", ticket.time_taken);
 //todo: se riusciamno gestire in modo migliore  tempi (dargli il tempo in secondi e nanosecondi)
     if (ticket.end_time.tv_sec != 0 || ticket.end_time.tv_nsec != 0) {
         printf("🏢 Desk index           : %d\n", ticket.seat_index);
@@ -170,10 +152,9 @@ void print_ticket(Ticket ticket) {
     }
 
     // Campi old version (se ancora rilevanti per debug)
-    printf("🕒 Old Actual Time     : %ld.%09ld\n",
-       ticket.actual_time.tv_sec, ticket.actual_time.tv_nsec);
-    printf("📍 Old Seat Index    : %d\n", ticket.seat_index);//todo: controllare perché alessio ha eliminato questa riga
-    printf("✔️  Old is_done       : %d\n", ticket.is_done);
+    printf("🕒  Actual Time   : %d\n", ticket.actual_time);
+    printf("📍  Seat Index    : %d\n", ticket.seat_index);
+    printf("✔️  Is_done       : %d\n", ticket.is_done);
 
     printf("==================================\n");
 }
@@ -186,14 +167,14 @@ void set_ready() {
     semaphore_do(children_go_sync_sem_id, 0);
     printf("[DEBUG] Operatore %d: Sto iniziando una nuova giornata\n", getpid());
 }
-void go_on_break(void){
-    printf("[DEBUG] Operatore %d: Vado in pausa, abbandono il posto allo sportello\n",
-           getpid());
+void go_on_break() {
+
+    printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
 
     //Notifica al direttore la pausa, se la coda è disponibile
     if (break_mgq_id != -1) {
         BreakMsg bm = { .mtype = 1, .worker = getpid() };
-        if (msgsnd(break_mgq_id, &bm, sizeof(pid_t), IPC_NOWAIT) == -1)
+        if (msgsnd(break_mgq_id, &bm, sizeof(pid_t), IPC_NOWAIT) == -1)//todo: testare il funzionamento di IPC_NOWAIT in casi estremi
             perror("[WARN] msgsnd break_mgq");
     }
 
@@ -212,7 +193,7 @@ int main () {
     available_breaks = config_shm_ptr->NOF_PAUSE;
     service_type = get_random_service_type();
     current_seat_index = -1;
-    sigsetjmp(jump_buffer, 1);//todo: capire se è necessario il controllo sul valore di ritorno di questa funzione
+    sigsetjmp(jump_buffer, 1);
 
     set_ready();
 
@@ -230,18 +211,19 @@ int main () {
                     Ticket_tbe_message ttbemsg;
                     msgrcv(tickets_tbe_mgq_id, &ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);
 
-                    printf("[DEBUG] Operatore %d: Inizio servizio, durata: %ld s\n",getpid(),tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time.tv_sec);
-                    nanosleep(&tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time, NULL);
+                    //todo: rivedere bene lo storico dei commit su questo codice
+                    printf("[DEBUG] Operatore %d: Inizio servizio, durata: %d\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
+                    sleep(tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
                     clock_gettime(CLOCK_MONOTONIC,&tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time);
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
-tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken =
-    timespec_diff(tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time,
-                  tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time);                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id=getpid();
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken =tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_sec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_sec+tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec / 1e9 ;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id=getpid();
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number=day_passed;
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index=i;//todo: refactorare desk_index a seat_index
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index=i;
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
                     print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);
+
                     //DECIDE SE ANDARE IN PAUSA
                     if (available_breaks > 0) {
 
@@ -251,10 +233,9 @@ tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken =
                             printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), available_breaks);
                             go_on_break();
                         }
-                        else {
-                            printf("[DEBUG] Operatore %d: NON vado in pausa\n", getpid());
-                        }
+
                     }
+                    printf("[DEBUG] Operatore %d: NON vado in pausa\n", getpid());
                 }
             }
         }
