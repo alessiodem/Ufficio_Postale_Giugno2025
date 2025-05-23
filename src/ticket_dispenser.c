@@ -7,6 +7,7 @@
 #include <sys/msg.h>
 #include <unistd.h>
 #include <sys/shm.h>
+#include <time.h>          /* struct timespec */
 
 #include "common.h"
 #include "../lib/sem_handling.h"
@@ -27,24 +28,30 @@ Seat *seats_shm_ptr;
 Config *config_shm_ptr;
 
 //SETUP FUNCTIONS
+//todo: to test
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
         printf("[DEBUG] Ticket Dispenser: Ricevuto segnale di fine giornata\n");
+        // pulire risorse
 
+        // se serve terminare in modo pulito le risorse posso farlo qui
+
+        // rimettersi in ready
         siglongjmp(jump_buffer, 1);  // Salta all'inizio del ciclo
     }
     else if (sig == SIGTERM) {
+        //todo: potrebbe esserci bisogno id altro(come fflush(stdout), non mi sebra serva ma se qualcosa non funziona potrebbe essere per la sua assenza
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
         printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
-        exit(EXIT_SUCCESS);
+        exit(0);
     }
 }
 void initSigAction() {
     struct sigaction sa;
     sa.sa_handler = handle_sig;
-    sigemptyset(&sa.sa_mask);
+    sigemptyset(&sa.sa_mask);  // Nessun segnale bloccato durante l'esecuzione dell'handler
     sa.sa_flags = 0;
 
     if (sigaction(SIGTERM, &sa, NULL) == -1) {
@@ -80,6 +87,7 @@ void setup_ipcs() {
         perror("[ERROR] msgget() per ticket_tbe_mgq_id fallito");
         exit(EXIT_FAILURE);
     }
+    //todo: controllare se config_shm_id e  seats_shm_id sono necessari (scusa per il todo studido, sono sotanco)
     int config_shm_id = shmget(KEY_CONFIG_SHM, sizeof(Config), 0666);
     if (config_shm_id == -1) {
         perror("[ERROR] shmget() per config_shm fallito");
@@ -129,7 +137,7 @@ int generate_random_time(int average_time) {
     return result;
 }
 
-//todo: potremmo trovare un modo migliore rispetto a questo (testare se funziona bene,basta che funziona si può lasciare, dubito guarderanno questa parte di codice ed anche se lo facessero ha senso come gestione, è solo un po' inusuale (credo(spero(plz god be gentile))))
+//todo: potremmo trovare un modo migliore rispetto a questo
 int find_a_seat_index(ServiceType service_type) {
     printf("[DEBUG] Ticket Dispenser: Ricerca posto per servizio tipo %d\n", service_type);
     int attempts= 0;
@@ -154,18 +162,24 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
     printf("[DEBUG] Ticket Dispenser: Generazione ticket %d per servizio tipo %d\n", ticket_number, service_type);
 
     int average_time = get_average_time(service_type);
+
+    /* converti il tempo medio generato (in secondi) in struct timespec */
+    struct timespec actual_ts = {
+        .tv_sec  = generate_random_time(average_time),
+        .tv_nsec = 0
+    };
+
     Ticket ticket = {
         .ticket_index = ticket_number,
         .service_type = service_type,
-        .actual_time = generate_random_time(average_time),//todo:  queste funzioni potrebbero dare il problema di eccessiva roba nello stack di chiamate, capire se effettivamente è un problema
-        .is_done = 0,
-        .user_id =requiring_user_pid,
-        .request_time =request_time,
-        .end_time = {0,0}
+        .actual_time  = actual_ts,
+        .is_done      = 0,
+        .user_id      = requiring_user_pid,
+        .request_time = request_time
     };
 
-    printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo: %d\n",
-           ticket.ticket_index, ticket.actual_time);
+    printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo: %ld\n",
+           ticket.ticket_index, ticket.actual_time.tv_sec);
     return ticket;
 }
 
@@ -183,8 +197,9 @@ int main(int argc, char *argv[]) {
     while (1) {
         printf("[DEBUG] Ticket Dispenser: In attesa di richiesta ticket\n");
         msgrcv(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 2, 0);
-        printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
 
+        printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
+        //todo: il codice qui sarebbe più indicato sotto ma il generate ticket ma spostato all'interno di ttbemsg e conseguenti modifiche
         Ticket ticket = generate_ticket(tmsg.service_type, ticket_index, tmsg.requiring_user,tmsg.request_time);
         tmsg.mtype = ticket.user_id;
         tickets_bucket_shm_ptr[ticket.ticket_index]=ticket;
@@ -192,13 +207,13 @@ int main(int argc, char *argv[]) {
 
         Ticket_tbe_message ttbemsg;
         ttbemsg.ticket_index=ticket.ticket_index;
-        ttbemsg.mtype=ticket.service_type+1;//+1 perché m_type non può essere 0 ed esiste un service_type==0
+        ttbemsg.mtype=ticket.service_type+1;//+1 perché m_type non può essere 0 ed esistre un service_type=0
         printf("[DEBUG] Ticket Dispenser: Invio ticket %d alla coda di tickets da erogare \n",ticket.ticket_index);
         if (msgsnd(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg) - sizeof(long), 0)==-1) {
             perror("[TD_ERROR] invio ticket da erogare fallito");
         }
 
-        printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d \n", ticket.ticket_index, tmsg.requiring_user);
+        printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d\n", ticket.ticket_index, tmsg.requiring_user);
         if (msgsnd(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0)==-1) {
             perror("[TD_ERROR] invio ticket all'utente fallito");
         }

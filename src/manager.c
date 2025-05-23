@@ -13,11 +13,12 @@
 #include "../lib/sem_handling.h"
 #include "../lib/utils.h"
 
+#include "../lib/analytics.h"
+
 //VARIABILI GLOBALI
-struct timespec daily_woking_time;
+struct timespec ts;
 int no_children = 0;
 pid_t *child_pids = NULL;
-int days_passed;
 
 //IPCs
 Config *config_shm_ptr;
@@ -29,11 +30,9 @@ int ticket_request_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
 
 //PROTOTIPI FUNZIONI
-void term_children();
-void free_memory();
 
-//FUNZIONI AUSILIARIE
-// Funzione per aggiungere un PID alla lista dei figli creati
+//FUNZIONI  AUSILIARIE
+// Funzione per aggiungere un PID alla lista dinamica
 void add_child_pid(pid_t child_pid) {
     //printf("[DEBUG] Aggiunta del PID %d alla lista dei figli...\n", child_pid);
     pid_t *temp = realloc(child_pids, (no_children + 1) * sizeof(pid_t));
@@ -71,11 +70,12 @@ void fork_and_execute(const char *file_path, char *const argv[]) {
 }
 
 //FUNZIONI DEBUG
-void debug__print__todays__seats__service(){
+void __debug__print_todays_seats_service(){
     for (int i =0;  i<config_shm_ptr->NOF_WORKER_SEATS;i++)
         printf("[DEBUG]Lo sportello %d puo' erogare il servizio %d\n", i,seats_shm_ptr[i].service_type);
 }
-void debug__print__configs(){
+void _debug_print_configs(){
+
     if (config_shm_ptr == NULL) {
         fprintf(stderr, "Errore: puntatore Config nullo.\n");
         return;
@@ -88,13 +88,13 @@ void debug__print__configs(){
     printf("SIM_DURATION: %d\n", config_shm_ptr->SIM_DURATION);
     printf("P_SERV_MIN: %.2f\n", config_shm_ptr->P_SERV_MIN);
     printf("P_SERV_MAX: %.2f\n", config_shm_ptr->P_SERV_MAX);
-    printf("N_NANO_SECS: %ld\n", config_shm_ptr->N_NANO_SECS);
+    printf("N_NANO_SECS: %d\n", config_shm_ptr->N_NANO_SECS);
     printf("NOF_PAUSE: %d\n", config_shm_ptr->NOF_PAUSE);
 
 };
-//TODO: questo non funziona senza dei permessi particolari e mi rompo il cazzo a trovare come averli, decidere se eliminare questa funzione
-void debug__print__process__life() {
+void print_process_life() {
     pid_t pid = getpid();
+
     char command[256];
 
     // Use xterm to run strace on the current PID
@@ -110,18 +110,17 @@ void debug__print__process__life() {
 
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void setup_ipcs() {
-
     //l'inizializzazione di config_shm_ptr è nella funzione setup_config() perché sevre inizializzarla prima di cricare la configurazione
-
     children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, EXCLUSIVE_CREATE_FLAG);
     if (children_ready_sync_sem_id == -1) {
         perror("Errore nella creazione del semaforo di sincronizzazione per i figli");
         exit(EXIT_FAILURE);
     }
-    if (semctl(children_ready_sync_sem_id, 0, SETVAL, 0) == -1) {
-        perror("Errore nel settaggio iniziale del semaforo children_ready_sync_sem_id");
-        exit(EXIT_FAILURE);
-    }
+        if (semctl(children_ready_sync_sem_id, 0, SETVAL, 0) == -1) {
+            perror("Errore nel settaggio iniziale del semaforo children_ready_sync_sem_id");
+            exit(EXIT_FAILURE);
+        }
+
 
     children_go_sync_sem_id = semget(KEY_SYNC_CHILDREN_START_SEM, 1, EXCLUSIVE_CREATE_FLAG);
     if (children_go_sync_sem_id == -1) {
@@ -180,9 +179,11 @@ void setup_config(){
 }
 
 void load_config(FILE *config_file) {
+    int incorrect_config = 0;
     int read_lines = 0;
 
     char *line = malloc(LINE_BUFFER_SIZE * sizeof(char));
+    //TEST_CALL_PTR_RETURN(line)
 
     while (fgets(line, LINE_BUFFER_SIZE, config_file) != NULL) {
         char *name = strtok(line, " ");
@@ -190,7 +191,7 @@ void load_config(FILE *config_file) {
         int value_int = strtoul(value, NULL, 10);
         double value_double = strtod(value, NULL);
         if ( value_int < 0 || value_double<0 || name == NULL || value == NULL) {
-            printf("Errore nella lettura config 1");
+            incorrect_config = 1;
             fclose(config_file);
             exit(EXIT_FAILURE);
         }
@@ -202,35 +203,33 @@ void load_config(FILE *config_file) {
         else if (strcmp(name, "P_SERV_MAX") == 0) config_shm_ptr->P_SERV_MAX = value_double;
         else if (strcmp(name, "N_NANO_SECS") == 0) config_shm_ptr->N_NANO_SECS = value_int;
         else if (strcmp(name, "NOF_PAUSE") == 0) config_shm_ptr->NOF_PAUSE = value_int;
-        else if (strcmp(name, "EXPLODE_THRESHOLD") == 0) config_shm_ptr->EXPLODE_THRESHOLD = value_int;
 
         else {
-            printf("Errore nella lettura config 2");
-            fclose(config_file);
-            exit(EXIT_FAILURE);
+            incorrect_config = 1;
+            break;
         }
         read_lines++;
     }
     free(line);
-    if (config_shm_ptr->P_SERV_MAX>1||config_shm_ptr->P_SERV_MIN>config_shm_ptr->P_SERV_MAX||read_lines < 9) { //non può essere <0 per i controlli sopra
+    if (incorrect_config == 1 ||config_shm_ptr->P_SERV_MAX>1||config_shm_ptr->P_SERV_MIN>config_shm_ptr->P_SERV_MAX||read_lines < 8) { //non può essere <0 per i controlli sopra
         fclose(config_file);
-        printf("Errore nella lettura config 3");
+        printf("Errore nella lettura config");
         exit(EXIT_FAILURE);
     }
 }
 
-//todo: definire una volta per tutte la durata delle giornate
+//todo: test
 void compute_daytime(){
     int secs_for_a_day = SECS_FOR_A_DAY;
     int nsecs_for_a_day = NSECS_FOR_A_DAY;
-    daily_woking_time.tv_sec=secs_for_a_day;
-    daily_woking_time.tv_nsec=nsecs_for_a_day;
+    ts.tv_sec=secs_for_a_day;
+    ts.tv_nsec=nsecs_for_a_day;
 }
 void create_seats() {
     //printf("[DEBUG] Creazione posti...\n");
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         seats_shm_ptr[i].service_type = get_random_service_type();
-        seats_shm_ptr[i].worker_sem_id= create_semaphore_and_setval(IPC_PRIVATE, 1, 0666 | IPC_CREAT, 1);
+        seats_shm_ptr[i].worker_sem_id       = create_semaphore_and_setval(IPC_PRIVATE, 1, 0666 | IPC_CREAT, 1);
     }
     printf("[DEBUG] Sportelli creati.\n");
 }
@@ -269,10 +268,12 @@ void create_ticket_dispenser(){
 }
 
 void setup_simulation(){
-    srand(time(NULL)*getpid());
+    srand(time(NULL));
     compute_daytime();
     setup_ipcs();
-    printf("[DEBUG] Durata di un giorno: %ld secondi e %ld nanosecondi\n", daily_woking_time.tv_sec, daily_woking_time.tv_nsec);
+    //Il modulo analytics ha bisogno della message‑queue pause prontaprima che i worker vengano creati, quindi lo inizializziamo ora.
+    analytics_init();
+    printf("[DEBUG] Durata di un giorno: %ld secondi e %ld nanosecondi\n", ts.tv_sec, ts.tv_nsec);
     create_seats();
     create_workers();
     create_users();
@@ -300,33 +301,15 @@ void wait_to_all_children_be_ready(){
 void notify_day_ended(){
     for (int i =0; i<no_children; i++)
         kill(child_pids[i], ENDEDDAY);
-}
-
-
-void print_end_simulation_output(char* end_cause, int day_passed) {
-    printf("\n========================================\n");
-    printf("          FINE SIMULAZIONE\n");
-    printf("========================================\n");
-    printf("📅 Ultimo giorno simulato : %d\n", day_passed);
-    printf("🛑 Causa terminazione     : %s\n", end_cause);
-    printf("----------------------------------------\n");
-    printf("📊 Statistiche finali:\n");
-    // print_analytics(); // TODO: scrivere la funzione che stampa le analytics
-    printf("========================================\n\n");
-}
-void check_explode_threshold() {
-    for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {
-        if (i> config_shm_ptr->EXPLODE_THRESHOLD) {
-            term_children();
-            free_memory();
-            print_end_simulation_output("EXPLODE THRESHOLD",days_passed-1);
-            exit(EXIT_FAILURE);
-        }
-    }
+    //todo: contare gli utenti  ancora in coda per l'explode threshld
+    //potrebbe non essere il punto giusto per il todo sopra.
+    // da implementare quando sappiamo come sono gestite le erogazioni
 }
 
 //FUNZIONI DI PULIZIA
 void reset_resources(){
+    //todo: pulirelr sltre risorse
+
     // Reset dei semafori di sincronizzazione
     if (semctl(children_ready_sync_sem_id, 0, SETVAL, 0) == -1) {
         perror("[ERRORE] Errore nel reset del semaforo children_ready_sync_sem_id");
@@ -341,20 +324,21 @@ void reset_resources(){
     if (errno != ENOMSG) {
         perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
     }
-    Ticket_tbe_message ttbemsg; //todo: testare
+    Ticket_tbe_message ttbemsg;
     while (msgrcv(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg)-sizeof(ttbemsg.mtype), 0, IPC_NOWAIT) != -1);
     if (errno != ENOMSG) {
         perror("[ERRORE] Errore nello svuotamento della message queue tickets_tbe_mgq_id");
     }
 
-    //i semafori dei seats vengono resettati dai workers quando ricevono ENDDAY
 
-    printf("[DEBUG] Direttore: risorse pulite");
 }
 void free_memory() {
-
     // Libera memoria allocata dinamicamente
     free(child_pids);
+
+    // Distacco dalle memorie condivise
+    shmdt(config_shm_ptr);
+    shmdt(seats_shm_ptr);
 
     // Rimozione semafori di sincronizzazione
     semctl(children_ready_sync_sem_id, 0, IPC_RMID);
@@ -374,7 +358,6 @@ void free_memory() {
     if (seats_shm_id != -1) {
         shmctl(seats_shm_id, IPC_RMID, NULL);
     }
-
     int tickets_bucket_shm_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket)*config_shm_ptr->SIM_DURATION*config_shm_ptr->NOF_USERS, 0666);
     if (tickets_bucket_shm_id != -1) {
         shmctl(tickets_bucket_shm_id, IPC_RMID, NULL);
@@ -384,10 +367,7 @@ void free_memory() {
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         semctl(seats_shm_ptr[i].worker_sem_id, 0, IPC_RMID);
     }
-
-    // Distacco dalle memorie condivise
-    shmdt(config_shm_ptr);
-    shmdt(seats_shm_ptr);
+    //todo: deallocare i semafori nei seats
 
     printf("[DEBUG] Risorse IPC deallocate correttamente\n");
 }
@@ -406,19 +386,20 @@ void term_children() {
 
 
 int main (int argc, char *argv[]){
-    //print_process_life();// se non funziona commenta questa riga
+    print_process_life();// se non funziona commenta questa riga
 
     //Alessandro ha aggiunto un metodo per pulire le ipc in questa riga, non so se vada effettivamente aggiunto perché il programma dovrebbe fare questo tipo di puliziadopo la fine della simulazione ma prima della fine dell'esecuzione del amager in modo da non lasciare risorse allocate quando non servono
     //è però possibile che la simulazione non venga terminata correttamente quindi forse ha senso inserirla
     //todo: discutere sui commenti sopra
-
     //sezione: lettura argomenti
+    //todo: TOTEST
     setup_config();
     if (argc != 2) {
         fprintf(stderr, "[USAGE] %s <percorso_file_config>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
+    //todo: TOTEST
     FILE *config_file = fopen(argv[1], "r");
     if (config_file == NULL) {
         perror("Failed to open config file");
@@ -426,35 +407,34 @@ int main (int argc, char *argv[]){
     }
     load_config(config_file);
     printf("%d", getpid());
+    //sleep(10);
     setup_simulation();
     printf("[DEBUG] La simulazione sta per essere avviata.\n");
-    debug__print__configs();
-    int days_passed;
-    for (days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
-        debug__print__todays__seats__service();
+    _debug_print_configs();
 
+    for (int days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
+        __debug__print_todays_seats_service();
+        //todo: TOTEST
         wait_to_all_children_be_ready();
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
-        nanosleep(&daily_woking_time, NULL);
-
+        nanosleep(&ts, NULL);
+        //todo: TOTEST
         notify_day_ended();
-
-        check_explode_threshold();
+        //todo: TOTEST
+        analytics_compute(days_passed);
+        analytics_print(days_passed);
         randomize_seats_service();
-
+        //todo: TOTEST
         reset_resources();
-
-        //read_and_print_analytics(); //todo:impolementare dopo che abbiamo la gestione delle erogazioni
-
         printf("[DEBUG] Giorno %d terminato.\n", days_passed);
     }
-
     printf("[DEBUG] Simulazione terminata.\n");
 
+    analytics_finalize();
+    //todo: TOTEST
     term_children();
+    //todo: TOTEST
     free_memory();
-
-    print_end_simulation_output("NESSUN ERRORE",days_passed-1);
 
 
     return 0;
