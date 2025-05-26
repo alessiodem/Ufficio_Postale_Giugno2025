@@ -90,12 +90,12 @@ void setup_ipcs() {
     }
     int tickets_bucket_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket) * config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION, 0666);
     if (tickets_bucket_id == -1) {
-        perror("[ERROR] shmget() per seats_shm fallito");
+        perror("[ERROR] shmget() per tickets_bucket_shm fallito");
         exit(EXIT_FAILURE);
     }
     tickets_bucket_shm_ptr = shmat(tickets_bucket_id, NULL, 0);
     if (tickets_bucket_shm_ptr == (void *)-1) {
-        perror("[ERROR] shmat() per seats_shm fallito");
+        perror("[ERROR] shmat() per tickets_bucket_shm fallito");
         exit(EXIT_FAILURE);
     }
 
@@ -115,7 +115,7 @@ int decide_if_go() {
     // Calcolo della probabilità casuale tra P_SERV_MIN e P_SERV_MAX
     double range = config_shm_ptr->P_SERV_MAX - config_shm_ptr->P_SERV_MIN;
     double p_serv = config_shm_ptr->P_SERV_MIN + ((double)rand() / RAND_MAX) * range;
-
+    printf("[DEBUG] Utente %d: Il mio p_serv è: %f\n",getpid(), p_serv );
     // Generazione della decisione basata su P_SERV
     int decision = ((double)rand() / RAND_MAX <= p_serv);
 
@@ -178,7 +178,10 @@ int main(int argc, char *argv[]) {
             ///RICEVE IL TICKET
             msgrcv(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), getpid(), 0);
             printf("[DEBUG] Utente %d: Ho ricevuto il ticket per il servizio richiesto, attendo l'erogazione\n", getpid());
-
+            if (trm.ticket_index == -1) {
+                printf(" [ERRORE] Utente %d:indice ticket non valido: ticket_index=%d",getpid(),trm.ticket_index);
+                exit(EXIT_FAILURE);
+            }
             while (tickets_bucket_shm_ptr[trm.ticket_index].end_time.tv_sec == 0 && tickets_bucket_shm_ptr[trm.ticket_index].end_time.tv_nsec == 0)
                 sched_yield(); // cede la CPU ad altri processi pronti
             //TODO: SOSTITUIRE IL WHILE SOPRA CON QUALCOSA DI PIÙ EFFICENTE

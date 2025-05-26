@@ -162,7 +162,7 @@ void go_on_break() {
     printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), available_breaks);
 
     semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
-    //Notifica al direttore la pausa, se la coda è disponibile
+
     if (break_mgq_id != -1) {
         Break_message bm = { .mtype = 1, .worker = getpid() };
         if (msgsnd(break_mgq_id, &bm, sizeof(pid_t), IPC_NOWAIT) == -1)
@@ -175,6 +175,7 @@ void go_on_break() {
     }
 }
 int main () {
+    srand(time(NULL));
     setup_sigaction();
     setup_ipcs();
     available_breaks = config_shm_ptr->NOF_PAUSE;
@@ -219,7 +220,7 @@ int main () {
                     //DECIDE SE ANDARE IN PAUSA
                     if (available_breaks > 0) {
 
-                        if ( P_BREAK > 0 && rand() % P_BREAK == 0 ) {
+                        if ( rand() % P_BREAK == 0 ) {
                             available_breaks--;
                             go_on_break();
                         }

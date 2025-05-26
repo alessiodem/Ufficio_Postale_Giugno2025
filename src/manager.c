@@ -147,12 +147,12 @@ void setup_ipcs() {
     }
     int tickets_bucket_shm_id = shmget(KEY_TICKETS_BUCKET_SHM, sizeof(Ticket) * config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION, EXCLUSIVE_CREATE_FLAG);
     if (tickets_bucket_shm_id == -1) {
-        perror("Errore nella creazione della memoria condivisa per i posti");
+        perror("Errore nella creazione della memoria condivisa per il cesto di ticket");
         exit(EXIT_FAILURE);
     }
     tickets_bucket_shm_ptr = shmat(tickets_bucket_shm_id, NULL, 0);
     if (tickets_bucket_shm_ptr == (void *)-1) {
-        perror("[ERROR] shmat() per seats_shm fallito per tickets_bucket_shm_ptr");
+        perror("[ERROR] shmat() per tickets_bucket_shm fallito ");
         exit(EXIT_FAILURE);
     }
     ticket_request_msg_id = msgget(KEY_TICKET_REQUEST_MGQ, EXCLUSIVE_CREATE_FLAG);
@@ -257,7 +257,7 @@ void compute_daytime(){
 void create_seats() {
     //printf("[DEBUG] Creazione posti...\n");
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
-        seats_shm_ptr[i].service_type = get_random_service_type();
+        seats_shm_ptr[i].service_type = get_random_service_type();// todo: questariga si pootrebbe eliminare ed inizializzare i service_type  con randomixe_service_type ad inizio del ciclo del main
         seats_shm_ptr[i].worker_sem_id= create_semaphore_and_setval(IPC_PRIVATE, 1, 0666 | IPC_CREAT, 1);
     }
     printf("[DEBUG] Sportelli creati.\n");
@@ -348,8 +348,10 @@ void print_end_simulation_output(char* end_cause, int day_passed) {
     printf("========================================\n\n");
 }
 void check_explode_threshold() {
+    int users_waiting=0;
     for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {
-        if (i> config_shm_ptr->EXPLODE_THRESHOLD) {
+        users_waiting++;
+        if (users_waiting> config_shm_ptr->EXPLODE_THRESHOLD) {
             term_children();
             free_memory();
             print_end_simulation_output("EXPLODE THRESHOLD",days_passed-1);
