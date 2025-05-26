@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
 
     if (decide_if_go()) {
         struct timespec time_to_wait_before_going_to_post_office=generate_random_go_to_post_office_time();
-        printf("[DEBUG] Utente %d: aspettero %ld,%ld secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
+        printf("[DEBUG] Utente %d: aspettero' %ld,%ld secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
         nanosleep(&time_to_wait_before_going_to_post_office,NULL);
         printf("[DEBUG] Utente %d: vado all'ufficio postale\n", getpid());
         ServiceType service_type = get_random_service_type();
@@ -177,10 +177,9 @@ int main(int argc, char *argv[]) {
 
             ///RICEVE IL TICKET
             msgrcv(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), getpid(), 0);
-            Ticket ticket = tickets_bucket_shm_ptr[trm.ticket_index];
             printf("[DEBUG] Utente %d: Ho ricevuto il ticket per il servizio richiesto, attendo l'erogazione\n", getpid());
 
-            while (ticket.is_done==0)
+            while (tickets_bucket_shm_ptr[trm.ticket_index].end_time.tv_sec == 0 && tickets_bucket_shm_ptr[trm.ticket_index].end_time.tv_nsec == 0)
                 sched_yield(); // cede la CPU ad altri processi pronti
             //TODO: SOSTITUIRE IL WHILE SOPRA CON QUALCOSA DI PIÙ EFFICENTE
             printf("------- Utente %d: Servizio completato-------\n", getpid());

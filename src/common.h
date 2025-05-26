@@ -26,7 +26,7 @@
 #define NSECS_FOR_A_DAY ((480 * config_shm_ptr->N_NANO_SECS) % 1000000000)
 #define LINE_BUFFER_SIZE (1024)
 #define P_BREAK (10) //probabilità 1/10 todo: così è gestita in modo brutto, sistemare o nascondere questa macro
-#define CONFIG_MAX_SEATS (64)
+#define CONFIG_MAX_SEATS (64)//todo questi due potrebbero dare problemi
 #define CONFIG_MAX_WORKERS (64)
 
 

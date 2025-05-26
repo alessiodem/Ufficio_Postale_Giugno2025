@@ -329,8 +329,10 @@ void wait_to_all_children_be_ready(){
 }
 
 void notify_day_ended(){
-    for (int i =0; i<no_children; i++)
+    for (int i =0; i<no_children; i++){
         kill(child_pids[i], ENDEDDAY);
+        //printf("[DEBUG] Direttore: Notifico il figlio %d che la giornata è terminata\n",child_pids[i]);
+    }
 }
 
 
@@ -470,6 +472,7 @@ int main (int argc, char *argv[]){
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
         nanosleep(&daily_woking_time, NULL);
 
+        reset_resources();
         notify_day_ended();
 
         //analytics_compute(days_passed);
@@ -478,7 +481,7 @@ int main (int argc, char *argv[]){
         check_explode_threshold();
         randomize_seats_service();
 
-        reset_resources();
+
 
         //read_and_print_analytics(); //todo:implementare dopo che abbiamo la gestione delle erogazioni
 

@@ -21,7 +21,7 @@ Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
 int current_seat_index;
-int aviable_breaks;
+int available_breaks;
 int in_break = 0;
 int day_passed=0;
 
@@ -136,13 +136,14 @@ void print_ticket(Ticket ticket) {
     printf("⏱️  End Time          : %ld.%09ld\n", ticket.end_time.tv_sec, ticket.end_time.tv_nsec);
     printf("⏱️️️⏱️⏱️  Time taken          : %f\n", ticket.time_taken);
 //todo: se riusciamno gestire in modo migliore  tempi (dargli il tempo in secondi e nanosecondi)
-    if (ticket.end_time.tv_sec != 0 || ticket.end_time.tv_nsec != 0) {
+    if (ticket.end_time.tv_sec != 0 && ticket.end_time.tv_nsec != 0) {
         printf("🏢 Desk index           : %d\n", ticket.seat_index);
         printf("👨‍💼 Operator ID      : %d\n", ticket.operator_id);
     }
 
     // Campi old version (se ancora rilevanti per debug)
     printf("🕒  Actual Time   : %f\n", ticket.actual_time);
+    printf("🕒  Real Time   : %f secondi\n", (ticket.actual_time*config_shm_ptr->N_NANO_SECS)/1000000000);
     printf("✔️  Is_done       : %d\n", ticket.is_done);
 
     printf("==================================\n");
@@ -158,7 +159,7 @@ void set_ready() {
 }
 void go_on_break() {
 
-    printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), aviable_breaks);
+    printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), available_breaks);
 
     semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
     //Notifica al direttore la pausa, se la coda è disponibile
@@ -176,7 +177,7 @@ void go_on_break() {
 int main () {
     setup_sigaction();
     setup_ipcs();
-    aviable_breaks = config_shm_ptr->NOF_PAUSE;
+    available_breaks = config_shm_ptr->NOF_PAUSE;
     service_type = get_random_service_type();
     current_seat_index = -1;
     sigsetjmp(jump_buffer, 1);
@@ -216,10 +217,10 @@ int main () {
                     print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);
 
                     //DECIDE SE ANDARE IN PAUSA
-                    if (aviable_breaks > 0) {
+                    if (available_breaks > 0) {
 
                         if ( P_BREAK > 0 && rand() % P_BREAK == 0 ) {
-                            aviable_breaks--;
+                            available_breaks--;
                             go_on_break();
                         }
 

@@ -174,8 +174,8 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
         .request_time = request_time
     };
 
-    printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo: %f\n",
-           ticket.ticket_index, ticket.actual_time);
+    printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo reale: %f\n",
+           ticket.ticket_index, (ticket.actual_time*config_shm_ptr->N_NANO_SECS)/1000000000);
     return ticket;
 }
 
