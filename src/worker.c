@@ -37,6 +37,12 @@ void handle_sig(int sig) {
             current_seat_index = -1;
         }
 
+        /* ➊ Segnala al manager che la giornata è conclusa */
+        semaphore_increment(children_ready_sync_sem_id);
+
+        /* ➋ Ripristina le pause disponibili per la nuova giornata */
+        available_breaks = config_shm_ptr->NOF_PAUSE;
+
         siglongjmp(jump_buffer, 1);
 
     }else if (sig== SIGTERM) {
@@ -201,11 +207,12 @@ int main () {
 
                     printf("[DEBUG] Operatore %d: Inizio servizio, durata: %f\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
 
+                    double sec_d = tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time;
                     struct timespec erogation_time = {
-                        .tv_sec = (tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS)*config_shm_ptr->N_NANO_SECS / 1000000000,
-                        .tv_nsec = (int)((tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS)*config_shm_ptr->N_NANO_SECS) % 1000000000
+                    .tv_sec  = (time_t)sec_d,
+                    .tv_nsec = (long)((sec_d - (time_t)sec_d) * 1000000000L)
                     };
-                    nanosleep(&erogation_time,NULL);
+                    nanosleep(&erogation_time, NULL);
 
                     clock_gettime(CLOCK_REALTIME,&tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time);
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;

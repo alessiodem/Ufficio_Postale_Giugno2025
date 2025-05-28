@@ -474,11 +474,15 @@ int main (int argc, char *argv[]){
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
         nanosleep(&daily_woking_time, NULL);
 
-        reset_resources();
-        notify_day_ended();
+       notify_day_ended();
 
-        //analytics_compute(days_passed);
-        //analytics_print(days_passed);
+        //aspetta che tutti i figli abbiano finito la giornata
+        semaphore_do(children_ready_sync_sem_id, -no_children);
+
+        analytics_compute(days_passed);
+        analytics_print(days_passed);
+
+        reset_resources();
 
         check_explode_threshold();
         randomize_seats_service();
