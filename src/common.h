@@ -88,6 +88,7 @@ typedef struct {
 typedef struct {
     ServiceType service_type; //servizio assegnato per la giornata
     int         worker_sem_id;       //id del semaforo che protegge l'accesso
+    int         has_operator;        // 0 = seat libero, 1 = operatore presente
 } Seat;
 
 

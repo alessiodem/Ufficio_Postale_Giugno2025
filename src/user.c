@@ -136,7 +136,7 @@ struct timespec generate_random_go_to_post_office_time() {
 int check_for_service_availability(ServiceType service_type) {
     printf("[DEBUG] Utente %d: Controllo disponibilità servizio tipo %d\n", getpid(), service_type);
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
-        if (seats_shm_ptr[i].service_type == service_type) {
+        if (seats_shm_ptr[i].service_type == service_type && seats_shm_ptr[i].has_operator == 1) {
             return 1;
         }
     }

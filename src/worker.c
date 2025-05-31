@@ -33,6 +33,7 @@ void handle_sig(int sig) {
         printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
         day_passed++;
         if (current_seat_index >= 0) {
+            seats_shm_ptr[current_seat_index].has_operator = 0;
             semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
             current_seat_index = -1;
         }
@@ -166,7 +167,7 @@ void set_ready() {
 void go_on_break() {
 
     printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), available_breaks);
-
+    seats_shm_ptr[current_seat_index].has_operator = 0;
     semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
 
     if (break_mgq_id != -1) {
@@ -197,6 +198,7 @@ int main () {
             if (seats_shm_ptr[i].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[i].worker_sem_id, -1) == 0) {
                 printf("[DEBUG] Operatore %d: Trovato posto libero %d\n", getpid(), i);
                 current_seat_index = i;
+                seats_shm_ptr[i].has_operator = 1;
 
                 //EROGAZIONE SERVIZIO
                 while (1){
