@@ -31,24 +31,17 @@ ServiceType service_type;
 //FUNZIONI DI SETUP
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
-        printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
+        //printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
         day_passed++;
         if (current_seat_index >= 0) {
-            seats_shm_ptr[current_seat_index].has_operator = 0;
             semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
             current_seat_index = -1;
         }
 
-        /* ➊ Segnala al manager che la giornata è conclusa */
-        semaphore_increment(children_ready_sync_sem_id);
-
-        /* ➋ Ripristina le pause disponibili per la nuova giornata */
-        available_breaks = config_shm_ptr->NOF_PAUSE;
-
         siglongjmp(jump_buffer, 1);
 
     }else if (sig== SIGTERM) {
-        printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
+        //printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
@@ -72,7 +65,7 @@ void setup_sigaction(){
     }
 }
 void setup_ipcs() {
-    printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
+    //printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
 
     if ((children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, 0666)) == -1) {
         perror("Errore semget KEY_SYNC_START_SEM");
@@ -134,7 +127,7 @@ void setup_ipcs() {
         exit(EXIT_FAILURE);
     }
 
-    printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
+    //printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
 }
 //FUNZIONI DI DEBUG
 #include <time.h>
@@ -165,14 +158,15 @@ void print_ticket(Ticket ticket) {
 
 //FUNZIONI DI FLOW PRINCIPALE
 void set_ready() {
-    printf("[DEBUG] Operatore %d: Sono pronto per la nuova giornata\n", getpid());
+    //printf("[DEBUG] Operatore %d: Sono pronto per la nuova giornata\n", getpid());
     semaphore_increment(children_ready_sync_sem_id);
     semaphore_do(children_go_sync_sem_id, 0);
-    printf("[DEBUG] Operatore %d: Sto iniziando una nuova giornata\n", getpid());
+    //printf("[DEBUG] Operatore %d: Sto iniziando una nuova giornata\n", getpid());
 }
 void go_on_break() {
 
     printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), available_breaks);
+
     seats_shm_ptr[current_seat_index].has_operator = 0;
     semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
 
@@ -188,11 +182,12 @@ void go_on_break() {
     }
 }
 int main () {
-    srand(time(NULL));
+    srand(time(NULL)*getpid());
     setup_sigaction();
     setup_ipcs();
     available_breaks = config_shm_ptr->NOF_PAUSE;
     service_type = get_random_service_type();
+    printf("[DEBUG] Operatore %d: Posso erogare il servizio: %d \n", getpid(),service_type);
     current_seat_index = -1;
     sigsetjmp(jump_buffer, 1);
 
@@ -215,12 +210,11 @@ int main () {
 
                     printf("[DEBUG] Operatore %d: Inizio servizio, durata: %f\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
 
-                    double sec_d = tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time;
                     struct timespec erogation_time = {
-                    .tv_sec  = (time_t)sec_d,
-                    .tv_nsec = (long)((sec_d - (time_t)sec_d) * 1000000000L)
+                        .tv_sec = (tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS)*config_shm_ptr->N_NANO_SECS / 1000000000,
+                        .tv_nsec = (int)((tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS)*config_shm_ptr->N_NANO_SECS) % 1000000000
                     };
-                    nanosleep(&erogation_time, NULL);
+                    nanosleep(&erogation_time,NULL);
 
                     struct timespec end_ts;
                     clock_gettime(CLOCK_REALTIME, &end_ts);

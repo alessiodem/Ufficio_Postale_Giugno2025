@@ -75,15 +75,17 @@ void fork_and_execute(const char *file_path, char *const argv[]) {
 
 //FUNZIONI DEBUG
 void debug__print__todays__seats__service(){
+    printf("====================\n");
     for (int i =0;  i<config_shm_ptr->NOF_WORKER_SEATS;i++)
         printf("[DEBUG]Lo sportello %d puo' erogare il servizio %d\n", i,seats_shm_ptr[i].service_type);
+    printf("====================\n");
 }
 void debug__print__configs(){
     if (config_shm_ptr == NULL) {
         fprintf(stderr, "Errore: puntatore Config nullo.\n");
         return;
     }
-
+    printf("====================\n");
     printf("Configurazione:\n");
     printf("NOF_WORKERS: %d\n", config_shm_ptr->NOF_WORKERS);
     printf("NOF_USERS: %d\n", config_shm_ptr->NOF_USERS);
@@ -93,6 +95,7 @@ void debug__print__configs(){
     printf("P_SERV_MAX: %.2f\n", config_shm_ptr->P_SERV_MAX);
     printf("N_NANO_SECS: %ld\n", config_shm_ptr->N_NANO_SECS);
     printf("NOF_PAUSE: %d\n", config_shm_ptr->NOF_PAUSE);
+    printf("====================\n");
 
 };
 //TODO: questo non funziona senza dei permessi particolari e mi rompo il cazzo a trovare come averli, decidere se eliminare questa funzione
@@ -270,10 +273,10 @@ void create_seats() {
     //printf("[DEBUG] Creazione posti...\n");
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         seats_shm_ptr[i].service_type = get_random_service_type();// todo: questariga si pootrebbe eliminare ed inizializzare i service_type  con randomixe_service_type ad inizio del ciclo del main
-        seats_shm_ptr[i].has_operator  = 0; 
         seats_shm_ptr[i].worker_sem_id= create_semaphore_and_setval(IPC_PRIVATE, 1, 0666 | IPC_CREAT, 1);
+        seats_shm_ptr[i].has_operator  = 0;
     }
-    printf("[DEBUG] Sportelli creati.\n");
+    //printf("[DEBUG] Sportelli creati.\n");
 }
 
 void create_workers() {
@@ -285,7 +288,7 @@ void create_workers() {
 
     for (int worker = 0; worker < config_shm_ptr->NOF_WORKERS; worker++)
         fork_and_execute("./build/worker", child_argv);
-    printf("[DEBUG] Workers creati.\n");
+    //printf("[DEBUG] Workers creati.\n");
 }
 void create_users() {
     //printf("[DEBUG] Creazione utenti...\n");
@@ -296,7 +299,7 @@ void create_users() {
 
     for (int user = 0; user < config_shm_ptr->NOF_USERS; user++)
         fork_and_execute("./build/user", child_argv);
-    printf("[DEBUG] Utenti creati.\n");
+    //printf("[DEBUG] Utenti creati.\n");
 }
 void create_ticket_dispenser(){
     //printf("[DEBUG] Creazione Ticket_dispenser...\n");
@@ -306,7 +309,7 @@ void create_ticket_dispenser(){
     child_argv[1] = NULL;
 
     fork_and_execute("./build/ticket_dispenser", child_argv);
-    printf("[DEBUG] Ticket dispenser creato.\n");
+    //printf("[DEBUG] Ticket dispenser creato.\n");
 }
 
 void setup_simulation(){
@@ -397,7 +400,7 @@ void reset_resources(){
 
     //i semafori dei seats vengono resettati dai workers quando ricevono ENDDAY
 
-    printf("[DEBUG] Direttore: risorse pulite");
+    //printf("[DEBUG] Direttore: risorse pulite");
 }
 void free_memory() {
 
@@ -440,7 +443,7 @@ void free_memory() {
     shmdt(config_shm_ptr);
     shmdt(seats_shm_ptr);
 
-    printf("[DEBUG] Risorse IPC deallocate correttamente\n");
+    //printf("[DEBUG] Risorse IPC deallocate correttamente\n");
 }
 
 
@@ -488,15 +491,11 @@ int main (int argc, char *argv[]){
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
         nanosleep(&daily_woking_time, NULL);
 
-       notify_day_ended();
-
-        //aspetta che tutti i figli abbiano finito la giornata
-        semaphore_do(children_ready_sync_sem_id, -no_children);
+        reset_resources();
+        notify_day_ended();
 
         analytics_compute(days_passed);
         analytics_print(days_passed);
-
-        reset_resources();
 
         check_explode_threshold();
         randomize_seats_service();
@@ -510,7 +509,7 @@ int main (int argc, char *argv[]){
 
     printf("[DEBUG] Simulazione terminata.\n");
 
-    //analytics_finalize();
+    analytics_finalize();
     term_children();
     free_memory();
 
