@@ -36,10 +36,8 @@ void handle_sig(int sig) {
 
         // se serve terminare in modo pulito le risorse posso farlo qui
 
-        //segnala al manager che la giornata è conclusa
-        semaphore_increment(children_ready_sync_sem_id);
-
-       siglongjmp(jump_buffer, 1);
+        // rimettersi in ready
+        siglongjmp(jump_buffer, 1);  // Salta all'inizio del ciclo
     }
     else if (sig == SIGTERM) {
         //todo: potrebbe esserci bisogno id altro(come fflush(stdout), non mi sebra serva ma se qualcosa non funziona potrebbe essere per la sua assenza

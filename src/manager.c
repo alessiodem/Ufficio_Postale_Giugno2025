@@ -258,8 +258,8 @@ void create_seats() {
     //printf("[DEBUG] Creazione posti...\n");
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         seats_shm_ptr[i].service_type = get_random_service_type();// todo: questariga si pootrebbe eliminare ed inizializzare i service_type  con randomixe_service_type ad inizio del ciclo del main
-        seats_shm_ptr[i].has_operator  = 0; 
         seats_shm_ptr[i].worker_sem_id= create_semaphore_and_setval(IPC_PRIVATE, 1, 0666 | IPC_CREAT, 1);
+        seats_shm_ptr[i].has_operator  = 0;
     }
     printf("[DEBUG] Sportelli creati.\n");
 }
@@ -475,15 +475,11 @@ int main (int argc, char *argv[]){
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
         nanosleep(&daily_woking_time, NULL);
 
-       notify_day_ended();
-
-        //aspetta che tutti i figli abbiano finito la giornata
-        semaphore_do(children_ready_sync_sem_id, -no_children);
+        reset_resources();
+        notify_day_ended();
 
         analytics_compute(days_passed);
         analytics_print(days_passed);
-
-        reset_resources();
 
         check_explode_threshold();
         randomize_seats_service();
@@ -497,7 +493,7 @@ int main (int argc, char *argv[]){
 
     printf("[DEBUG] Simulazione terminata.\n");
 
-    //analytics_finalize();
+    analytics_finalize();
     term_children();
     free_memory();
 
