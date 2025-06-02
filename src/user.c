@@ -24,10 +24,10 @@ int ticket_request_msg_id;
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
-        printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
+        //printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
     }else if (sig== SIGTERM) {
-        printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
+        //printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
@@ -51,7 +51,7 @@ void setup_sigaction(){
     }
 }
 void setup_ipcs() {
-    printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
+    //printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
 
     if ((children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, 0666)) == -1) {
         perror("Errore semget KEY_SYNC_START_SEM");
@@ -98,23 +98,23 @@ void setup_ipcs() {
         exit(EXIT_FAILURE);
     }
 
-    printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
+    //printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
 }
 
 //FUNZIONI DI FLOW PRINCIPALE
 void set_ready() {
-    printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
+    //printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
     semaphore_increment(children_ready_sync_sem_id);
     semaphore_do(children_go_sync_sem_id, 0);
-    printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
+    //printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
 }
 int decide_if_go() {
-    printf("[DEBUG] Utente %d: Decido se andare oggi\n", getpid());
+    //printf("[DEBUG] Utente %d: Decido se andare oggi\n", getpid());
 
     // Calcolo della probabilità casuale tra P_SERV_MIN e P_SERV_MAX
     double range = config_shm_ptr->P_SERV_MAX - config_shm_ptr->P_SERV_MIN;
     double p_serv = config_shm_ptr->P_SERV_MIN + ((double)rand() / RAND_MAX) * range;
-    printf("[DEBUG] Utente %d: Il mio p_serv è: %f\n",getpid(), p_serv );
+    //printf("[DEBUG] Utente %d: Il mio p_serv è: %f\n",getpid(), p_serv );
     // Generazione della decisione basata su P_SERV
     int decision = ((double)rand() / RAND_MAX <= p_serv);
 

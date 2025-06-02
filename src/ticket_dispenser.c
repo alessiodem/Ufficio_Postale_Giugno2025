@@ -31,7 +31,7 @@ Config *config_shm_ptr;
 //todo: to test
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
-        printf("[DEBUG] Ticket Dispenser: Ricevuto segnale di fine giornata\n");
+        //printf("[DEBUG] Ticket Dispenser: Ricevuto segnale di fine giornata\n");
         // pulire risorse
 
         // se serve terminare in modo pulito le risorse posso farlo qui
@@ -44,7 +44,7 @@ void handle_sig(int sig) {
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
-        printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
+        //printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         exit(0);
     }
 }
@@ -65,7 +65,7 @@ void initSigAction() {
     }
 }
 void setup_ipcs() {
-    printf("[DEBUG] Inizializzazione IPC\n");
+    //printf("[DEBUG] Inizializzazione IPC\n");
     children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, 0666);
     if (children_ready_sync_sem_id == -1) {
         perror("[ERROR] semget() per children_ready_sync_sem_id fallito");
@@ -122,34 +122,34 @@ void setup_ipcs() {
 
 //FUNZIONI DI FLOW PRINCIPALE
 void set_ready() {
-    printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
+    //printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
     semaphore_increment(children_ready_sync_sem_id);
     semaphore_do(children_go_sync_sem_id, 0);
-    printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
+    //printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
 }
 double generate_random_time(int average_time) {
-    printf("[DEBUG] Ticket Dispenser: Generazione tempo casuale. Media: %d\n", average_time);
+    //printf("[DEBUG] Ticket Dispenser: Generazione tempo casuale. Media: %d\n", average_time);
     double max_variation = average_time / 2;
     double variation = (rand() % (int)(2 * max_variation + 1)) - max_variation;
     double actual_time = average_time + variation;
-    printf("[DEBUG] Ticket Dispenser: Tempo generato: %f\n", actual_time);
+    //printf("[DEBUG] Ticket Dispenser: Tempo generato: %f\n", actual_time);
     return actual_time;
 }
 
 //todo: potremmo trovare un modo migliore rispetto a questo
 int find_a_seat_index(ServiceType service_type) {
-    printf("[DEBUG] Ticket Dispenser: Ricerca posto per servizio tipo %d\n", service_type);
+    //printf("[DEBUG] Ticket Dispenser: Ricerca posto per servizio tipo %d\n", service_type);
     int attempts= 0;
     while (attempts<config_shm_ptr->NOF_WORKER_SEATS) {
         seat_finder_index = seat_finder_index % config_shm_ptr->NOF_WORKER_SEATS;
         if (seats_shm_ptr[seat_finder_index].service_type == service_type) {
-            printf("[DEBUG] Ticket Dispenser: Trovato posto all'indice %d\n", seat_finder_index);
+            //printf("[DEBUG] Ticket Dispenser: Trovato posto all'indice %d\n", seat_finder_index);
             seat_finder_index++;
             return seat_finder_index-1;
         }
         seat_finder_index++;
         attempts++;
-        printf("[DEBUG] Ticket Dispenser: Spostamento all'indice %d\n", seat_finder_index);
+        //printf("[DEBUG] Ticket Dispenser: Spostamento all'indice %d\n", seat_finder_index);
     }
     // non è possibile che non lo trovi perché viene fatto prima un controllo da parte dell'utente
     perror("[TD_ERROR] Terminazione inaspettata, non è stato trovato un posto per il servizio dal ticket_dispenser: controllo precedente fallito");
@@ -158,7 +158,7 @@ int find_a_seat_index(ServiceType service_type) {
 
 
 Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requiring_user_pid, struct timespec request_time) {
-    printf("[DEBUG] Ticket Dispenser: Generazione ticket %d per servizio tipo %d\n", ticket_number, service_type);
+    //printf("[DEBUG] Ticket Dispenser: Generazione ticket %d per servizio tipo %d\n", ticket_number, service_type);
 
     int average_time = get_average_time(service_type);
 
@@ -184,7 +184,7 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
 int main(int argc, char *argv[]) {
     srand(time(NULL));
     initSigAction();
-    printf("[DEBUG] Ticket Dispenser: Avvio processo\n");
+    //printf("[DEBUG] Ticket Dispenser: Avvio processo\n");
     setup_ipcs();
     sigsetjmp(jump_buffer, 1);
     Ticket_request_message tmsg;
@@ -213,7 +213,7 @@ int main(int argc, char *argv[]) {
         if (msgsnd(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0)==-1) {
             perror("[TD_ERROR] invio ticket all'utente fallito");
         }
-        printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
+        //printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
     }
 
     printf("[DEBUG] Ticket Dispenser %d: Processo terminato in modo inaspettato\n", getpid());
