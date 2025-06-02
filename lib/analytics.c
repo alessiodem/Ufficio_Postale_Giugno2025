@@ -50,10 +50,12 @@ analytics_print(int current_day)        •	Stampa un report giornaliero, che in
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <stdbool.h>
+#include "sem_handling.h"
 
 //Dipendenze esterne (shared memory create altrove)
 extern Ticket  *tickets_bucket_shm_ptr;   //definita in manager.c
 extern Config  *config_shm_ptr;           //definita in manager.c
+extern int tickets_bucket_sem_id;         //definito in manager.c
 
 static int break_mq_id = -1;
 
@@ -122,6 +124,9 @@ analytics_compute(int current_day){
         exit(EXIT_FAILURE);
     }
 
+    //Inizio sezione critica: snapshot dei ticket
+    semaphore_decrement(tickets_bucket_sem_id);
+
     //scansiona il bucket dei ticket 
     size_t bucket_len = (size_t)config_shm_ptr->NOF_USERS *
                         (size_t)config_shm_ptr->SIM_DURATION;
@@ -186,6 +191,8 @@ analytics_compute(int current_day){
         }
     }
 
+    //Fine sezione critica: rilascio lock
+    semaphore_increment(tickets_bucket_sem_id);
     //consuma tutti i messaggi di pausa arrivati durante la giornata
     if (break_mq_id != -1) {
         Break_message bm;

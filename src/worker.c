@@ -20,6 +20,7 @@ Config *config_shm_ptr;
 Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
+int tickets_bucket_sem_id;
 int current_seat_index;
 int available_breaks;
 int in_break = 0;
@@ -127,6 +128,11 @@ void setup_ipcs() {
         perror("[ERROR] shmat() per seats_shm fallito");
         exit(EXIT_FAILURE);
     }
+    tickets_bucket_sem_id = semget(KEY_TICKETS_BUCKET_SEM, 1, 0666);
+    if (tickets_bucket_sem_id == -1) {
+        perror("[ERROR] semget() per tickets_bucket_sem_id fallito");
+        exit(EXIT_FAILURE);
+    }
 
     printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
 }
@@ -216,12 +222,20 @@ int main () {
                     };
                     nanosleep(&erogation_time, NULL);
 
-                    clock_gettime(CLOCK_REALTIME,&tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time);
+                    struct timespec end_ts;
+                    clock_gettime(CLOCK_REALTIME, &end_ts);
+
+                    //Sezione critica: aggiornamento del ticket
+                    semaphore_decrement(tickets_bucket_sem_id);
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time = end_ts;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken =
+                        (double)(end_ts.tv_sec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_sec) +
+                        (double)(end_ts.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec) / 1e9;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id = getpid();
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number = day_passed;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = i;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken =(double)(tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_sec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_sec)+(double)(tickets_bucket_shm_ptr[ttbemsg.ticket_index].end_time.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec) / 1e9 ;
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id=getpid();
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number=day_passed;
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index=i;
+                    semaphore_increment(tickets_bucket_sem_id);
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
                     print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);

@@ -29,6 +29,7 @@ int children_go_sync_sem_id;
 int ticket_request_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
 int break_mgq_id = -1;
+int tickets_bucket_sem_id;
 
 //PROTOTIPI FUNZIONI
 void term_children();
@@ -168,6 +169,17 @@ void setup_ipcs() {
     break_mgq_id = msgget(KEY_BREAK_MGQ, EXCLUSIVE_CREATE_FLAG);
     if (break_mgq_id == -1) {
         perror("Errore nella creazione della message queue le pause effettuate");
+        exit(EXIT_FAILURE);
+    }
+
+    //Semaforo globale per proteggere tickets_bucket_shm
+    tickets_bucket_sem_id = semget(KEY_TICKETS_BUCKET_SEM, 1, EXCLUSIVE_CREATE_FLAG);
+    if (tickets_bucket_sem_id == -1) {
+        perror("Errore nella creazione del semaforo per il cesto di ticket");
+        exit(EXIT_FAILURE);
+    }
+    if (semctl(tickets_bucket_sem_id, 0, SETVAL, 1) == -1) {
+        perror("Errore nel settaggio iniziale del semaforo tickets_bucket_sem_id");
         exit(EXIT_FAILURE);
     }
 }
@@ -395,6 +407,7 @@ void free_memory() {
     // Rimozione semafori di sincronizzazione
     semctl(children_ready_sync_sem_id, 0, IPC_RMID);
     semctl(children_go_sync_sem_id, 0, IPC_RMID);
+    semctl(tickets_bucket_sem_id, 0, IPC_RMID);
 
     // Rimozione delle message queue
     msgctl(ticket_request_msg_id, IPC_RMID, NULL);

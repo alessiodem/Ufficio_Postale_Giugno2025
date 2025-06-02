@@ -20,6 +20,7 @@ sigjmp_buf jump_buffer;
 
 int ticket_request_mgq_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
+int tickets_bucket_sem_id;
 
 int ticket_index = 0;
 int seat_finder_index=0;
@@ -120,6 +121,11 @@ void setup_ipcs() {
         perror("[ERROR] shmat() per tickets_bucket_shm fallito");
         exit(EXIT_FAILURE);
     }
+    tickets_bucket_sem_id = semget(KEY_TICKETS_BUCKET_SEM, 1, 0666);
+    if (tickets_bucket_sem_id == -1) {
+        perror("[ERROR] semget() per tickets_bucket_sem_id fallito");
+        exit(EXIT_FAILURE);
+    }
 }
 
 //FUNZIONI DI FLOW PRINCIPALE
@@ -200,7 +206,10 @@ int main(int argc, char *argv[]) {
         //todo: il codice qui sarebbe più indicato sotto ma il generate ticket ma spostato all'interno di ttbemsg e conseguenti modifiche
         Ticket ticket = generate_ticket(tmsg.service_type, ticket_index, tmsg.requiring_user,tmsg.request_time);
         tmsg.mtype = ticket.user_id;
-        tickets_bucket_shm_ptr[ticket.ticket_index]=ticket;
+        //Scrittura protetta sul bucket dei ticket
+        semaphore_decrement(tickets_bucket_sem_id);
+        tickets_bucket_shm_ptr[ticket.ticket_index] = ticket;
+        semaphore_increment(tickets_bucket_sem_id);
         ticket_index++;
 
         Ticket_tbe_message ttbemsg;

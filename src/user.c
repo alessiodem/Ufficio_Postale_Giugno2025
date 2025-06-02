@@ -19,6 +19,7 @@ Seat *seats_shm_ptr;
 Config *config_shm_ptr;
 Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
+int tickets_bucket_sem_id;
 
 
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
@@ -99,6 +100,13 @@ void setup_ipcs() {
     tickets_bucket_shm_ptr = shmat(tickets_bucket_id, NULL, 0);
     if (tickets_bucket_shm_ptr == (void *)-1) {
         perror("[ERROR] shmat() per tickets_bucket_shm fallito");
+        exit(EXIT_FAILURE);
+    }
+
+    //Apri il semaforo globale che protegge tickets_bucket_shm
+    tickets_bucket_sem_id = semget(KEY_TICKETS_BUCKET_SEM, 1, 0666);
+    if (tickets_bucket_sem_id == -1) {
+        perror("[ERROR] semget() per tickets_bucket_sem_id fallito");
         exit(EXIT_FAILURE);
     }
 
@@ -185,9 +193,16 @@ int main(int argc, char *argv[]) {
                 printf(" [ERRORE] Utente %d:indice ticket non valido: ticket_index=%d",getpid(),trm.ticket_index);
                 exit(EXIT_FAILURE);
             }
-            while (tickets_bucket_shm_ptr[trm.ticket_index].end_time.tv_sec == 0 && tickets_bucket_shm_ptr[trm.ticket_index].end_time.tv_nsec == 0)
-                sched_yield(); // cede la CPU ad altri processi pronti
-            //TODO: SOSTITUIRE IL WHILE SOPRA CON QUALCOSA DI PIÙ EFFICENTE
+            //Attendo che il ticket sia marcato come is_done in maniera atomica
+            int done = 0;
+            while (!done) {
+                semaphore_decrement(tickets_bucket_sem_id);
+                done = tickets_bucket_shm_ptr[trm.ticket_index].is_done;
+                semaphore_increment(tickets_bucket_sem_id);
+
+                if (!done)
+                    sched_yield();   //cedo la CPU 
+            }
             printf("------- Utente %d: Servizio completato-------\n", getpid());
 
             go_home();
