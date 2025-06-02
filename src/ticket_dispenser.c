@@ -188,7 +188,7 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
 //MAIN
 
 int main(int argc, char *argv[]) {
-    srand(time(NULL));
+    srand(time(NULL)*getpid());
     initSigAction();
     //printf("[DEBUG] Ticket Dispenser: Avvio processo\n");
     setup_ipcs();
@@ -201,10 +201,8 @@ int main(int argc, char *argv[]) {
         msgrcv(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 2, 0);
 
         printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
-        //todo: il codice qui sarebbe più indicato sotto ma il generate ticket ma spostato all'interno di ttbemsg e conseguenti modifiche
         Ticket ticket = generate_ticket(tmsg.service_type, ticket_index, tmsg.requiring_user,tmsg.request_time);
         tmsg.mtype = ticket.user_id;
-        //Scrittura protetta sul bucket dei ticket
         semaphore_decrement(tickets_bucket_sem_id);
         tickets_bucket_shm_ptr[ticket.ticket_index] = ticket;
         semaphore_increment(tickets_bucket_sem_id);
@@ -212,7 +210,7 @@ int main(int argc, char *argv[]) {
 
         Ticket_tbe_message ttbemsg;
         ttbemsg.ticket_index=ticket.ticket_index;
-        ttbemsg.mtype=ticket.service_type+1;//+1 perché m_type non può essere 0 ed esistre un service_type=0
+        ttbemsg.mtype=ticket.service_type+1;//+1 perché m_type non può essere 0 ed esistere un service_type=0
         printf("[DEBUG] Ticket Dispenser: Invio ticket %d alla coda di tickets da erogare \n",ticket.ticket_index);
         if (msgsnd(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg) - sizeof(long), 0)==-1) {
             perror("[TD_ERROR] invio ticket da erogare fallito");

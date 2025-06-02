@@ -365,7 +365,7 @@ void print_end_simulation_output(char* end_cause, int day_passed) {
 }
 void check_explode_threshold() {
     int users_waiting=0;
-    for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {
+    for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {//può non essere gestita la mutua esclusione perché durante l'esecuzione di questa line gli altri processi attendono al ready-go
         users_waiting++;
         if (users_waiting> config_shm_ptr->EXPLODE_THRESHOLD) {
             term_children();
@@ -396,6 +396,11 @@ void reset_resources(){
     while (msgrcv(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg)-sizeof(ttbemsg.mtype), 0, IPC_NOWAIT) != -1);
     if (errno != ENOMSG) {
         perror("[ERRORE] Errore nello svuotamento della message queue tickets_tbe_mgq_id");
+    }
+
+    if (semctl(tickets_bucket_sem_id, 0, SETVAL, 1) == -1) {
+        perror("Errore nel settaggio iniziale del semaforo tickets_bucket_sem_id");
+        exit(EXIT_FAILURE);
     }
 
     //i semafori dei seats vengono resettati dai workers quando ricevono ENDDAY
@@ -499,10 +504,6 @@ int main (int argc, char *argv[]){
 
         check_explode_threshold();
         randomize_seats_service();
-
-
-
-        //read_and_print_analytics(); //todo:implementare dopo che abbiamo la gestione delle erogazioni
 
         printf("\n==============================\n==============================\n\n [DEBUG] Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
     }

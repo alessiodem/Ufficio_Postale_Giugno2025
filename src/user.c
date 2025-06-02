@@ -153,7 +153,7 @@ void go_home() {
 //MAIN
 int main(int argc, char *argv[]) {
     setup_sigaction();
-    srand(getpid());
+    srand(time(NULL)*getpid());
     setup_ipcs();
     sigsetjmp(jump_buffer, 1);
 
@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             //Attendo che il ticket sia marcato come is_done in maniera atomica
-            int done = 0;
+            int done = 0;//todo renderlo più efficente
             while (!done) {
                 semaphore_decrement(tickets_bucket_sem_id);
                 done = tickets_bucket_shm_ptr[trm.ticket_index].is_done;

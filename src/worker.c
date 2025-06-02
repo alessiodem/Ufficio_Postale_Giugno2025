@@ -209,11 +209,13 @@ int main () {
                     msgrcv(tickets_tbe_mgq_id, &ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);
 
                     printf("[DEBUG] Operatore %d: Inizio servizio, durata: %f\n", getpid(), tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time);
-
+                    semaphore_decrement(tickets_bucket_sem_id);
                     struct timespec erogation_time = {
                         .tv_sec = (tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS)*config_shm_ptr->N_NANO_SECS / 1000000000,
                         .tv_nsec = (int)((tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time * config_shm_ptr->N_NANO_SECS)*config_shm_ptr->N_NANO_SECS) % 1000000000
                     };
+                    semaphore_increment(tickets_bucket_sem_id);
+
                     nanosleep(&erogation_time,NULL);
 
                     struct timespec end_ts;
@@ -232,12 +234,15 @@ int main () {
                     semaphore_increment(tickets_bucket_sem_id);
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
-                    print_ticket(tickets_bucket_shm_ptr[ttbemsg.ticket_index]);
+                    semaphore_decrement(tickets_bucket_sem_id);
+                    Ticket ticket_tobeprint=tickets_bucket_shm_ptr[ttbemsg.ticket_index]; //ho scomposto il salvataggio e la print per risparmiare tempo passato in sezione critica
+                    semaphore_increment(tickets_bucket_sem_id);
+                    print_ticket(ticket_tobeprint);
 
                     //DECIDE SE ANDARE IN PAUSA
                     if (available_breaks > 0) {
 
-                        if ( rand() % P_BREAK == 0 ) {
+                        if (P_BREAK<=1 || rand() % P_BREAK == 0 ) {
                             available_breaks--;
                             go_on_break();
                         }
