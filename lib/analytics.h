@@ -20,7 +20,7 @@ typedef struct {
     ServiceStats by_service[NUM_SERVIZI]; //breakdown per servizio
 
     long unique_operators;   //operatori che hanno lavorato (pid unici)
-    long occupied_seats;     //sportelli occupati ≥ una volta 
+    long occupied_seats;     //sportelli occupati ≥  una volta
     long pauses;             //pause effettuate dagli operatori
 } DayStats;
 

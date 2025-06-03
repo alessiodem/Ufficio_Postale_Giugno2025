@@ -148,8 +148,8 @@ analytics_compute(int current_day){
         //conta utente servito / non servito
         if (t->is_done) {       //vale true se il ticket è stato servito da un operatore.
             //tempo di attesa: total - erogazione
-            double wait_time = t->time_taken - t->actual_time;
-            double service_t = t->actual_time;
+            double wait_time = t->time_taken - (t->actual_time * config_shm_ptr->N_NANO_SECS)/1000000000;
+            double service_t = (t->actual_time * config_shm_ptr->N_NANO_SECS)/1000000000;//todo: si potrebbe aggiungere un parametro al ticket chiamato 'real_erogation time' che contiene il tempo reale che il ticket ci mette per essere erogato (quindi il tempo passato nella nanosleep del worker)
 
             if (is_today) {
                 ++day_sv->served;
@@ -163,24 +163,24 @@ analytics_compute(int current_day){
 
         //operatori & sportelli
         if (t->operator_id > 0) {
-            size_t idx = pid_to_index(t->operator_id);
+            size_t op_idx = pid_to_index(t->operator_id);
 
                 //Se questo operatore non era ancora stato visto a quel seat (sportello), lo segniamo e aumentiamo il numero di operatori su quel seat.
-                        int seat = t->seat_index;
+            int seat = t->seat_index;
             if (seat >= 0 && seat < (int)n_seats) {
-                if (!seen_op_seat[seat][idx]) {
-                    seen_op_seat[seat][idx] = true;
+                if (!seen_op_seat[seat][op_idx]) {
+                    seen_op_seat[seat][op_idx] = true;
                     ++ops_per_seat[seat];
                 }
             }
                 //Se questo operatore non è ancora stato conteggiato oggi, lo aggiungiamo.
-            if (!seen_operator_today[idx]) {
-                seen_operator_today[idx] = true;
+            if (!seen_operator_today[op_idx]) {
+                seen_operator_today[op_idx] = true;
                 ++today_stats.unique_operators;
             }
                 //Se è la prima volta che vediamo questo operatore in tutta la simulazione, aggiorniamo anche le statistiche totali.
-            if (!seen_operator_sim[idx]) {
-                seen_operator_sim[idx] = true;
+            if (!seen_operator_sim[op_idx]) {
+                seen_operator_sim[op_idx] = true;
                 ++total_stats.unique_operators;
             }
         }
@@ -189,9 +189,14 @@ analytics_compute(int current_day){
         if (t->seat_index >= 0 && (size_t)t->seat_index < n_seats) {
             if (!seat_used_today[t->seat_index]) {
                 seat_used_today[t->seat_index] = true;
-                ++today_stats.occupied_seats;//todo: occupied seats deve essere azzerato ad ogni inizio giornata
             }
         }
+        int occupied_seats_today_counter=0;
+        for (int i =0; i<n_seats; i++) {
+            if (seat_used_today[i]==1)
+                occupied_seats_today_counter++;
+        }
+        today_stats.occupied_seats=occupied_seats_today_counter;
     }
 
     //Fine sezione critica: rilascio lock
@@ -310,18 +315,17 @@ analytics_print(int current_day)
         printf("4. il numero di servizi non erogati totali nella simulazione        : %ld\n", total_not_served_all);
         //todo: 5. il numero di servizi erogati in media al giorno
         printf("6. il numero di servizi non erogati in media al giorno              : %.2f\n", avg_not_served_day);
-        printf("7• il tempo medio di attesa degli utenti nella simulazione          : %.2f s\n", avg_wait_sim);
+        printf("7. il tempo medio di attesa degli utenti nella simulazione          : %.2f s\n", avg_wait_sim);
         printf("8. il tempo medio di attesa degli utenti nella giornata             : %.2f s\n", served_today ? wait_today / (double)served_today : 0.0);
         printf("9. il tempo medio di erogazione dei servizi nella simulazione       : %.2f s\n", avg_service_sim);
         printf("10. il tempo medio di erogazione dei servizi nella giornata         : %.2f s\n", served_today ? serv_today / (double)served_today : 0.0);
         // todo: 11. le statistiche precedenti suddivise per tipologia di servizio
-        printf("12. il numero di operatori attivi durante la giornata               : %ld\n",
-                    today_stats.unique_operators);
-        printf("13. il numero di operatori attivi durante la simulazione            : %ld\n",
-                total_stats.unique_operators);
+        printf("12. il numero di operatori attivi durante la giornata               : %ld\n",today_stats.unique_operators);
+        printf("13. il numero di operatori attivi durante la simulazione            : %ld\n",total_stats.unique_operators);
 
-        printf("14a. il numero medio di pause effettuate nella giornate             : %.2f\n", (double)total_stats.pauses / (double)days_completed);
-        //todo mancano 14b. il totale pause effettuate nella simulazione
+        printf("14a. il numero medio di pause effettuate nella giornate             : %.2f\n", (double)total_stats.pauses / (double)days_completed/ (double)total_stats.unique_operators);
+        printf("14b. il numero medio di pause effettuate nella simulazione          : %.2f\n", (double)total_stats.pauses / (double)total_stats.unique_operators);
+
         //todo 15. il rapporto fra operatori disponibili e sportelli esistenti, per ogni sportello per ogni giornata
 
 
