@@ -45,7 +45,7 @@ void handle_sig(int sig) {
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
-        //printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
+        //printf("[DEBUG] Erogatore %d: Ricevuto SIGTERM, termino.\n", getpid());
         exit(0);
     }
 }
@@ -128,10 +128,10 @@ void setup_ipcs() {
 
 //FUNZIONI DI FLOW PRINCIPALE
 void set_ready() {
-    //printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
+    printf("[DEBUG] Ticket Dispenser %d: Sono pronto per la nuova giornata\n", getpid());
     semaphore_increment(children_ready_sync_sem_id);
     semaphore_do(children_go_sync_sem_id, 0);
-    //printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
+    //printf("[DEBUG] Ticket Dispenser %d: Sto iniziando una nuova giornata\n", getpid());
 }
 double generate_random_time(int average_time) {
     //printf("[DEBUG] Ticket Dispenser: Generazione tempo casuale. Media: %d\n", average_time);

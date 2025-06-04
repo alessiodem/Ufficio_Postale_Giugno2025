@@ -21,13 +21,16 @@ Ticket *tickets_bucket_shm_ptr;
 int ticket_request_msg_id;
 int tickets_bucket_sem_id;
 
+struct timespec time_to_wait_before_going_to_post_office;
+double p_serv;
 
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
+
         //printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
-    }else if (sig== SIGTERM) {
+    }else if (sig == SIGTERM) {
         //printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
@@ -115,6 +118,11 @@ void set_ready() {
     semaphore_do(children_go_sync_sem_id, 0);
     //printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
 }
+void set_p_serv() {
+    // Calcolo della probabilità casuale tra P_SERV_MIN e P_SERV_MAX
+    double range = config_shm_ptr->P_SERV_MAX - config_shm_ptr->P_SERV_MIN;
+     p_serv = config_shm_ptr->P_SERV_MIN + ((double)rand() / RAND_MAX) * range;
+}
 int decide_if_go() {
     //printf("[DEBUG] Utente %d: Decido se andare oggi\n", getpid());
 
@@ -130,12 +138,7 @@ int decide_if_go() {
 
     return decision;
 }
-struct timespec generate_random_go_to_post_office_time() {
-    struct timespec ts;
-    ts.tv_sec = rand() % SECS_FOR_A_DAY;
-    ts.tv_nsec = rand() % 1000000000;
-    return ts;
-}
+
 int check_for_service_availability(ServiceType service_type) {
     printf("[DEBUG] Utente %d: Controllo disponibilità servizio tipo %d\n", getpid(), service_type);
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
@@ -156,11 +159,15 @@ int main(int argc, char *argv[]) {
     srand(time(NULL)*getpid());
     setup_ipcs();
     sigsetjmp(jump_buffer, 1);
+    set_p_serv();
 
     set_ready();
 
-    if (decide_if_go()) {
-        struct timespec time_to_wait_before_going_to_post_office=generate_random_go_to_post_office_time();
+    if ((double)rand() / RAND_MAX <= p_serv) {
+        printf("[DEBUG] Utente %d: Decisione: vado\n", getpid());
+        time_to_wait_before_going_to_post_office.tv_sec = rand() % SECS_FOR_A_DAY;
+        time_to_wait_before_going_to_post_office.tv_nsec = rand() % 1000000000;
+
         printf("[DEBUG] Utente %d: aspettero' %ld,%ld secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
         nanosleep(&time_to_wait_before_going_to_post_office,NULL);
         printf("[DEBUG] Utente %d: vado all'ufficio postale\n", getpid());
@@ -206,7 +213,7 @@ int main(int argc, char *argv[]) {
             go_home();
         }
     } else {
-        printf("[DEBUG] Utente %d: Oggi resto a casa\n", getpid());
+        printf("[DEBUG] Utente %d: Decisione: resto a casa\n", getpid());
         go_home();
     }
 
