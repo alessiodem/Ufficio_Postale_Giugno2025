@@ -10,6 +10,7 @@
 #include "common.h"
 #include "../lib/sem_handling.h"
 #include "../lib/utils.h"
+#include "../lib/analytics.h"   // nuovo: conteggio servizi non erogati
 
 //VARIABILI GLOBALI
 int children_ready_sync_sem_id;
@@ -143,7 +144,7 @@ int check_for_service_availability(ServiceType service_type) {
     printf("[DEBUG] Utente %d: Controllo disponibilità servizio tipo %d\n", getpid(), service_type);
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         if (seats_shm_ptr[i].service_type == service_type && seats_shm_ptr[i].has_operator == 1) {
-             return 1;
+            return 1;
         }
     }
     return 0;
@@ -156,7 +157,7 @@ void go_home() {
 //MAIN
 int main(int argc, char *argv[]) {
     setup_sigaction();
-    srand(time(NULL)*getpid());
+    srand(getpid());
     setup_ipcs();
     sigsetjmp(jump_buffer, 1);
     set_p_serv();
@@ -196,7 +197,7 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             //Attendo che il ticket sia marcato come is_done in maniera atomica
-            int done = 0;//todo renderlo più efficente
+            int done = 0;
             while (!done) {
                 semaphore_decrement(tickets_bucket_sem_id);
                 done = tickets_bucket_shm_ptr[trm.ticket_index].is_done;
@@ -205,11 +206,14 @@ int main(int argc, char *argv[]) {
                 if (!done)
                     sched_yield();   //cedo la CPU 
             }
+
+
             printf("------- Utente %d: Servizio completato-------\n", getpid());
 
             go_home();
         } else {
             printf("[DEBUG] Utente %d: Servizio non disponibile\n", getpid());
+            analytics_register_not_served(service_type);
             go_home();
         }
     } else {

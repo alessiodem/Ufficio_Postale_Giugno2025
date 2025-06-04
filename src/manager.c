@@ -303,7 +303,6 @@ void create_users() {
 
     for (int user = 0; user < config_shm_ptr->NOF_USERS; user++)
         fork_and_execute("./build/user", child_argv);
-
     //printf("[DEBUG] Utenti creati.\n");
 }
 void create_ticket_dispenser(){
@@ -479,6 +478,8 @@ int main (int argc, char *argv[]){
     //print_process_life();// se non funziona commenta questa riga
     //sezione: lettura argomenti
     setup_config();
+    config_shm_ptr->current_day = 0;
+
     if (argc != 2) {
         fprintf(stderr, "[USAGE] %s <percorso_file_config>\n", argv[0]);
         exit(EXIT_FAILURE);
@@ -513,8 +514,18 @@ int main (int argc, char *argv[]){
         analytics_compute(days_passed);
         analytics_print(days_passed);
 
+        {
+        struct timespec flush_delay = { .tv_sec = 0, .tv_nsec = 50 * 1000000 };
+        nanosleep(&flush_delay, NULL);
+        }
+
         check_explode_threshold();
         randomize_seats_service();
+
+        //Prima di lanciare i nuovi figli, passa al giorno successivo
+        config_shm_ptr->current_day += 1;
+
+        printf("\n==============================\n==============================\n\n [DEBUG] Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
     }
 
     printf("[DEBUG] Simulazione terminata.\n");

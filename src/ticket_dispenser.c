@@ -7,7 +7,7 @@
 #include <sys/msg.h>
 #include <unistd.h>
 #include <sys/shm.h>
-#include <time.h>          /* struct timespec */
+#include <time.h>
 
 #include "common.h"
 #include "../lib/sem_handling.h"
@@ -128,7 +128,7 @@ void setup_ipcs() {
 
 //FUNZIONI DI FLOW PRINCIPALE
 void set_ready() {
-    printf("[DEBUG] Ticket Dispenser %d: Sono pronto per la nuova giornata\n", getpid());
+    //printf("[DEBUG] Ticket Dispenser %d: Sono pronto per la nuova giornata\n", getpid());
     semaphore_increment(children_ready_sync_sem_id);
     semaphore_do(children_go_sync_sem_id, 0);
     //printf("[DEBUG] Ticket Dispenser %d: Sto iniziando una nuova giornata\n", getpid());
@@ -168,13 +168,14 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
 
     int average_time = get_average_time(service_type);
 
-    /* converti il tempo medio generato (in secondi) in struct timespec */
+    //converti il tempo medio generato (in secondi) in struct timespec
     double actual_ts = generate_random_time(average_time);
 
     Ticket ticket = {
         .ticket_index = ticket_number,
         .service_type = service_type,
-        .actual_time  = actual_ts,
+        //.day_number   = config_shm_ptr->current_day,
+        .actual_erogation_time  = actual_ts,
         .is_done      = 0,
         .user_id      = requiring_user_pid,
         .request_time = request_time
@@ -216,11 +217,11 @@ int main(int argc, char *argv[]) {
             perror("[TD_ERROR] invio ticket da erogare fallito");
         }
 
-        printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d\n", ticket.ticket_index, tmsg.requiring_user);
+        //printf("[DEBUG] Ticket Dispenser: Invio ticket %d all'utente %d\n", ticket.ticket_index, tmsg.requiring_user);
         if (msgsnd(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0)==-1) {
             perror("[TD_ERROR] invio ticket all'utente fallito");
         }
-        //printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
+        printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
     }
 
     printf("[DEBUG] Ticket Dispenser %d: Processo terminato in modo inaspettato\n", getpid());

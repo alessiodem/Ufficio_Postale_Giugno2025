@@ -20,7 +20,7 @@ typedef struct {
     ServiceStats by_service[NUM_SERVIZI]; //breakdown per servizio
 
     long unique_operators;   //operatori che hanno lavorato (pid unici)
-    long occupied_seats;     //sportelli occupati ≥  una volta
+    long occupied_seats;     //sportelli occupati ≥ una volta 
     long pauses;             //pause effettuate dagli operatori
 } DayStats;
 
@@ -39,8 +39,15 @@ void analytics_print(int current_day);
 //Libera eventuali risorse allocate dal modulo.
 void analytics_finalize(void);
 
+void analytics_register_not_served(int service_type);
+
+void analytics_register_served(int service_type,
+                               double service_time,
+                               double wait_time);
+
 //Accesso read‑only ai dati raccolti
 const DayStats *analytics_get_today(void);
 const DayStats *analytics_get_total(void);
 
-#endif /* ANALYTICS_H */
+
+#endif

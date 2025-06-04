@@ -189,14 +189,9 @@ analytics_compute(int current_day){
         if (t->seat_index >= 0 && (size_t)t->seat_index < n_seats) {
             if (!seat_used_today[t->seat_index]) {
                 seat_used_today[t->seat_index] = true;
+                ++today_stats.occupied_seats;
             }
         }
-        int occupied_seats_today_counter=0;
-        for (int i =0; i<n_seats; i++) {
-            if (seat_used_today[i]==1)
-                occupied_seats_today_counter++;
-        }
-        today_stats.occupied_seats=occupied_seats_today_counter;
     }
 
     //Fine sezione critica: rilascio lock
@@ -234,19 +229,13 @@ analytics_compute(int current_day){
     }
     ++days_completed;
 
-    for (int s = 0; s < NUM_SERVIZI; ++s) {
-        served_today += today_stats.by_service[s].served;
-        wait_today   += today_stats.by_service[s].tot_wait;
-        serv_today   += today_stats.by_service[s].tot_service;
-    }
-
     //ealloca la memoria degli array usati solo per oggi.
     free(seen_operator_today);
     free(seat_used_today);
 }
 
-static void
-print_service_line(const char *label, const ServiceStats *ss)//todo label si può rimuovere
+static void __attribute__((unused))
+print_service_line(const char *label, const ServiceStats *ss)
 {
     printf("%-28s Serviti: %6ld | Non serviti: %4ld | "
            "Attesa media: %7.2f s | Erogazione media: %7.2f s\n",
@@ -260,78 +249,84 @@ print_service_line(const char *label, const ServiceStats *ss)//todo label si pu�
 void
 analytics_print(int current_day)
 {
-    printf("\n================= REPORT GIORNO %d =================\n",
-            current_day + 1);
+    //1‑6
+
+    double avg_served_day     = days_completed       ? (double)total_served_all     / days_completed : 0.0;
+    double avg_not_served_day = days_completed       ? (double)total_not_served_all / days_completed : 0.0;
+    double avg_wait_sim       = total_served_all     ?  total_wait_all    / total_served_all    : 0.0;
+    double avg_service_sim    = total_served_all     ?  total_service_all / total_served_all    : 0.0;
+
+    // metriche dei giorni gia finiti
+    long   served_today   = 0;
+    long   not_served_today = 0;
+    double wait_today     = 0.0;
+    double service_today  = 0.0;
 
     for (int s = 0; s < NUM_SERVIZI; ++s) {
-        char buf[64];
-        if (today_stats.by_service[s].served+today_stats.by_service[s].not_served>0) {
-            snprintf(buf, sizeof(buf), "Servizio %d (oggi)", s);
-            print_service_line(buf, &today_stats.by_service[s]);
-        }
-        if (total_stats.by_service[s].served+total_stats.by_service[s].not_served>0 ) {
-            snprintf(buf, sizeof(buf), "Servizio %d (tot)", s);
-            print_service_line(buf, &total_stats.by_service[s]);
-        }
+        ServiceStats *d = &today_stats.by_service[s];
+        served_today     += d->served;
+        not_served_today += d->not_served;
+        wait_today       += d->tot_wait;
+        service_today    += d->tot_service;
     }
 
-    printf("\n--- Operatori per sportello (oggi) ---\n");
+    double avg_wait_day    = served_today ? wait_today    / served_today : 0.0;
+    double avg_service_day = served_today ? service_today / served_today : 0.0;
 
-    for (int s = 0; s < config_shm_ptr->NOF_WORKER_SEATS; ++s)
-        if (ops_per_seat[s]>0)
-            printf("Sportello %2d : %u operatore/i\n", s, ops_per_seat[s]);
 
-    printf("\n--- Rapporto operatori/sportello (oggi) ---\n");
-    for (int s = 0; s < config_shm_ptr->NOF_WORKER_SEATS; s++) {
 
-        double ratio = today_stats.unique_operators ?
-                   (double)ops_per_seat[s] / today_stats.unique_operators * 100.0
-                   : 0.0;
-        if (ratio>0)
-            printf("Seat %2d : %u op / %ld tot (%.1f%%)\n",
-                s, ops_per_seat[s], today_stats.unique_operators, ratio);
+    printf("\n========= STATISTICHE ‑ GIORNO %d =========\n", current_day + 1);
+
+    //Utenti/Servizi
+    printf("Utenti serviti ‑ tot simulazione       : %ld\n", total_served_all);
+    printf("Utenti serviti ‑ media/giorno          : %.2f\n", avg_served_day);
+    printf("Servizi erogati ‑ tot simulazione      : %ld\n", total_served_all);
+    printf("Servizi NON erogati ‑ tot simulazione  : %ld\n", total_not_served_all);
+    printf("Servizi NON erogati - giornata          : %ld\n", not_served_today);
+    printf("Servizi erogati ‑ media/giorno         : %.2f\n", avg_served_day);
+    printf("Servizi NON erogati ‑ media/giorno     : %.2f\n", avg_not_served_day);
+
+    //Tempi medi
+    printf("Tempo medio attesa ‑ simulazione       : %.2f s\n", avg_wait_sim);
+    printf("Tempo medio attesa ‑ giornata          : %.2f s\n", avg_wait_day);
+    printf("Tempo medio erogazione ‑ simulazione   : %.2f s\n", avg_service_sim);
+    printf("Tempo medio erogazione ‑ giornata      : %.2f s\n", avg_service_day);
+
+    //11
+
+    printf("\n--- Breakdown per tipologia di servizio ---\n");
+    for (int s = 0; s < NUM_SERVIZI; ++s) {
+        ServiceStats *today = &today_stats.by_service[s];
+        ServiceStats *tot   = &total_stats.by_service[s];
+
+        double avg_w_today = today->served ? today->tot_wait    / today->served : 0.0;
+        double avg_w_tot   = tot->served   ? tot->tot_wait      / tot->served   : 0.0;
+        double avg_s_today = today->served ? today->tot_service / today->served : 0.0;
+        double avg_s_tot   = tot->served   ? tot->tot_service   / tot->served   : 0.0;
+
+        printf("Servizio %d:\n", s);
+        printf("  Utenti serviti     (oggi / sim)      : %ld / %ld\n", today->served,     tot->served);
+        printf("  Servizi non erogati (oggi / sim)     : %ld / %ld\n", today->not_served, tot->not_served);
+        printf("  Tempo medio attesa  (oggi / sim)     : %.2f / %.2f s\n", avg_w_today, avg_w_tot);
+        printf("  Tempo medio servizio(oggi / sim)     : %.2f / %.2f s\n", avg_s_today, avg_s_tot);
     }
 
-    printf("----------------------------------------------------\n");
+    //12 13
+    printf("\nOperatori attivi ‑ giornata            : %ld\n", today_stats.unique_operators);
+    printf("Operatori attivi ‑ simulazione         : %ld\n", total_stats.unique_operators);
 
-    printf("Sportelli occupati oggi       : %ld / %d\n",
-            today_stats.occupied_seats,
-            config_shm_ptr->NOF_WORKER_SEATS);
+    //14
+    double avg_pauses_day = days_completed ? (double)total_stats.pauses / days_completed : 0.0;
+    printf("Pause ‑ media/giorno                   : %.2f\n", avg_pauses_day);
+    printf("Pause ‑ tot simulazione                : %ld\n", total_stats.pauses);
 
-    printf("Pause effettuate oggi         : %ld\n", today_stats.pauses);
-    printf("Pause totali simulazione      : %ld\n", total_stats.pauses);
-    printf("====================================================\n");
-    /* ---------- riepilogo complessivo -----------------------------*/
-    if (days_completed > 0) {
-        double avg_served_day      = (double)total_served_all     / (double)days_completed;
-        double avg_not_served_day  = (double)total_not_served_all / (double)days_completed;
-        double avg_wait_sim        = (total_served_all ? total_wait_all    / (double)total_served_all : 0.0);
-        double avg_service_sim     = (total_served_all ? total_service_all / (double)total_served_all : 0.0);
-
-        printf("\n### RIEPILOGO SIMULAZIONE ###\n");
-        printf("1. il numero di utenti serviti totali nella simulazione             : %ld\n", total_served_all);
-        printf("2. il numero di utenti serviti in media al giorno                   : %.2f\n", avg_served_day);
-        //todo:  3. il numero di servizi erogati totali nella simulazione
-        printf("4. il numero di servizi non erogati totali nella simulazione        : %ld\n", total_not_served_all);
-        //todo: 5. il numero di servizi erogati in media al giorno
-        printf("6. il numero di servizi non erogati in media al giorno              : %.2f\n", avg_not_served_day);
-        printf("7. il tempo medio di attesa degli utenti nella simulazione          : %.2f s\n", avg_wait_sim);
-        printf("8. il tempo medio di attesa degli utenti nella giornata             : %.2f s\n", served_today ? wait_today / (double)served_today : 0.0);
-        printf("9. il tempo medio di erogazione dei servizi nella simulazione       : %.2f s\n", avg_service_sim);
-        printf("10. il tempo medio di erogazione dei servizi nella giornata         : %.2f s\n", served_today ? serv_today / (double)served_today : 0.0);
-        // todo: 11. le statistiche precedenti suddivise per tipologia di servizio
-        printf("12. il numero di operatori attivi durante la giornata               : %ld\n",today_stats.unique_operators);
-        printf("13. il numero di operatori attivi durante la simulazione            : %ld\n",total_stats.unique_operators);
-
-        printf("14a. il numero medio di pause effettuate nella giornate             : %.2f\n", (double)total_stats.pauses / (double)days_completed/ (double)total_stats.unique_operators);
-        printf("14b. il numero medio di pause effettuate nella simulazione          : %.2f\n", (double)total_stats.pauses / (double)total_stats.unique_operators);
-
-        //todo 15. il rapporto fra operatori disponibili e sportelli esistenti, per ogni sportello per ogni giornata
-
-
+    //15
+    printf("\n--- Rapporto operatori / sportello (giornata) ---\n");
+    for (int seat = 0; seat < config_shm_ptr->NOF_WORKER_SEATS; ++seat) {
+        printf("Sportello %2d : %u operatori\n", seat, ops_per_seat[seat]);
     }
-
 }
+
 
 void analytics_finalize(void){
     free(seen_operator_sim);
@@ -346,3 +341,34 @@ const DayStats *analytics_get_today(void){      //const DayStats *: restituisce 
 const DayStats *analytics_get_total(void){
     return &total_stats;
 }
+
+//Registra un servizio non erogato (utente tornato a casa senza ticket)
+void analytics_register_not_served(int s)
+{
+    ++today_stats.by_service[s].not_served;
+    ++total_stats.by_service[s].not_served;
+    ++total_not_served_all;
+}
+
+//Registra un servizio erogato, con tempi di attesa e di erogazione
+void analytics_register_served(int service_type,
+                               double service_time,
+                               double wait_time);
+
+void analytics_register_served(int s, double service_time, double wait_time)
+{
+    //Statistiche della giornata
+    ++today_stats.by_service[s].served;
+    today_stats.by_service[s].tot_wait    += wait_time;
+    today_stats.by_service[s].tot_service += service_time;
+
+    //Statistiche totali
+    ++total_stats.by_service[s].served;
+    total_stats.by_service[s].tot_wait    += wait_time;
+    total_stats.by_service[s].tot_service += service_time;
+
+    ++total_served_all;
+    total_wait_all    += wait_time;
+    total_service_all += service_time;
+}
+

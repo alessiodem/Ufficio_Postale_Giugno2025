@@ -7,6 +7,7 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 
+#include "../lib/analytics.h"
 #include "common.h"
 #include "../lib/sem_handling.h"
 #include "../lib/utils.h"
@@ -25,16 +26,15 @@ int tickets_bucket_sem_id;
 int current_seat_index;
 int available_breaks;
 int in_break = 0;
-int day_passed=0;
 
 ServiceType service_type;
 
 //FUNZIONI DI SETUP
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
-        //printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
-        day_passed++;
+        printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
         if (current_seat_index >= 0) {
+            seats_shm_ptr[current_seat_index].has_operator = 0;
             semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
             current_seat_index = -1;
         }
@@ -166,7 +166,6 @@ void set_ready() {
 void go_on_break() {
 
     printf("[DEBUG] Operatore %d: Vado in pausa. Pause rimanenti: %d\n", getpid(), available_breaks);
-
     seats_shm_ptr[current_seat_index].has_operator = 0;
     semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
 
@@ -187,7 +186,7 @@ void go_on_break() {
     }
 }
 int main () {
-    srand(time(NULL)*getpid());
+    srand(time(NULL));
     setup_sigaction();
     setup_ipcs();
     available_breaks = config_shm_ptr->NOF_PAUSE;
@@ -200,7 +199,6 @@ int main () {
     set_ready();
 
     while (1) {
-        //questo endless loop serve per consentirgli di continuare a cercare un seat libero, è inefficente todo: è molto inefficiente, se vogliamo farlo bene va sostituito con un sistema di segnali quando un seat si libera
 
         while ( seat_finder_index<config_shm_ptr->NOF_WORKER_SEATS) {
             if (seats_shm_ptr[seat_finder_index].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[seat_finder_index].worker_sem_id, -1) == 0) {
@@ -237,10 +235,21 @@ int main () {
                         (double)(end_ts.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec) / 1e9;
 
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id = getpid();
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number = day_passed;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number = config_shm_ptr.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = seat_finder_index;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = i;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
                     semaphore_increment(tickets_bucket_sem_id);
+
+                    //Registrazione nelle statistiche
+                    double wait_time_sec =
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken -
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time;
+
+                    analytics_register_served(
+                        tickets_bucket_shm_ptr[ttbemsg.ticket_index].service_type,
+                        tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time,
+                        wait_time_sec);
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
                     semaphore_decrement(tickets_bucket_sem_id);
