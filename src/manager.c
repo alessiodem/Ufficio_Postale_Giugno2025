@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/msg.h>
+#include <sys/wait.h>
 
 #include "common.h"
 #include "../lib/sem_handling.h"
@@ -34,6 +35,7 @@ int tickets_bucket_sem_id;
 //PROTOTIPI FUNZIONI
 void term_children();
 void free_memory();
+void restart_children_for_new_day(void);
 
 //FUNZIONI AUSILIARIE
 // Funzione per aggiungere un PID alla lista dei figli creati
@@ -75,17 +77,15 @@ void fork_and_execute(const char *file_path, char *const argv[]) {
 
 //FUNZIONI DEBUG
 void debug__print__todays__seats__service(){
-    printf("====================\n");
     for (int i =0;  i<config_shm_ptr->NOF_WORKER_SEATS;i++)
         printf("[DEBUG]Lo sportello %d puo' erogare il servizio %d\n", i,seats_shm_ptr[i].service_type);
-    printf("====================\n");
 }
 void debug__print__configs(){
     if (config_shm_ptr == NULL) {
         fprintf(stderr, "Errore: puntatore Config nullo.\n");
         return;
     }
-    printf("====================\n");
+
     printf("Configurazione:\n");
     printf("NOF_WORKERS: %d\n", config_shm_ptr->NOF_WORKERS);
     printf("NOF_USERS: %d\n", config_shm_ptr->NOF_USERS);
@@ -95,7 +95,6 @@ void debug__print__configs(){
     printf("P_SERV_MAX: %.2f\n", config_shm_ptr->P_SERV_MAX);
     printf("N_NANO_SECS: %ld\n", config_shm_ptr->N_NANO_SECS);
     printf("NOF_PAUSE: %d\n", config_shm_ptr->NOF_PAUSE);
-    printf("====================\n");
 
 };
 //TODO: questo non funziona senza dei permessi particolari e mi rompo il cazzo a trovare come averli, decidere se eliminare questa funzione
@@ -273,10 +272,10 @@ void create_seats() {
     //printf("[DEBUG] Creazione posti...\n");
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         seats_shm_ptr[i].service_type = get_random_service_type();// todo: questariga si pootrebbe eliminare ed inizializzare i service_type  con randomixe_service_type ad inizio del ciclo del main
+        seats_shm_ptr[i].has_operator  = 0; 
         seats_shm_ptr[i].worker_sem_id= create_semaphore_and_setval(IPC_PRIVATE, 1, 0666 | IPC_CREAT, 1);
-        seats_shm_ptr[i].has_operator  = 0;
     }
-    //printf("[DEBUG] Sportelli creati.\n");
+    printf("[DEBUG] Sportelli creati.\n");
 }
 
 void create_workers() {
@@ -288,7 +287,7 @@ void create_workers() {
 
     for (int worker = 0; worker < config_shm_ptr->NOF_WORKERS; worker++)
         fork_and_execute("./build/worker", child_argv);
-    //printf("[DEBUG] Workers creati.\n");
+    printf("[DEBUG] Workers creati.\n");
 }
 void create_users() {
     //printf("[DEBUG] Creazione utenti...\n");
@@ -299,7 +298,7 @@ void create_users() {
 
     for (int user = 0; user < config_shm_ptr->NOF_USERS; user++)
         fork_and_execute("./build/user", child_argv);
-    //printf("[DEBUG] Utenti creati.\n");
+    printf("[DEBUG] Utenti creati.\n");
 }
 void create_ticket_dispenser(){
     //printf("[DEBUG] Creazione Ticket_dispenser...\n");
@@ -309,7 +308,7 @@ void create_ticket_dispenser(){
     child_argv[1] = NULL;
 
     fork_and_execute("./build/ticket_dispenser", child_argv);
-    //printf("[DEBUG] Ticket dispenser creato.\n");
+    printf("[DEBUG] Ticket dispenser creato.\n");
 }
 
 void setup_simulation(){
@@ -365,7 +364,7 @@ void print_end_simulation_output(char* end_cause, int day_passed) {
 }
 void check_explode_threshold() {
     int users_waiting=0;
-    for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {//può non essere gestita la mutua esclusione perché durante l'esecuzione di questa line gli altri processi attendono al ready-go
+    for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {
         users_waiting++;
         if (users_waiting> config_shm_ptr->EXPLODE_THRESHOLD) {
             term_children();
@@ -398,14 +397,44 @@ void reset_resources(){
         perror("[ERRORE] Errore nello svuotamento della message queue tickets_tbe_mgq_id");
     }
 
-    if (semctl(tickets_bucket_sem_id, 0, SETVAL, 1) == -1) {
-        perror("Errore nel settaggio iniziale del semaforo tickets_bucket_sem_id");
-        exit(EXIT_FAILURE);
-    }
-
     //i semafori dei seats vengono resettati dai workers quando ricevono ENDDAY
 
-    //printf("[DEBUG] Direttore: risorse pulite");
+    printf("[DEBUG] Direttore: risorse pulite");
+}
+/**
+ * Termine dei figli ancora attivi, attesa della loro chiusura,
+ * azzeramento della lista PIDs e lancio di un nuovo set di
+ * worker/user/ticket-dispenser.  Non tocca le statistiche globali.
+ */
+void restart_children_for_new_day(void)
+{
+    // 1. Termina i figli del giorno appena concluso
+    for (int i = 0; i < no_children; ++i)
+        kill(child_pids[i], SIGTERM);
+
+    //2. Evita processi zombie
+    int status;
+    while (no_children > 0) {
+        pid_t pid = wait(&status);
+        if (pid == -1) break;           //nessun altro figlio 
+        --no_children;
+    }
+
+    //3. Pulisce la lista PIDs
+    free(child_pids);
+    child_pids = NULL;
+    no_children = 0;
+
+    // 4. Reimposta gli sportelli:semaforo a 1 e nessun operatore
+    for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; ++i) {
+        seats_shm_ptr[i].has_operator = 0;
+        semctl(seats_shm_ptr[i].worker_sem_id, 0, SETVAL, 1);
+    }
+
+    // 5. Avvia un nuovo turno di figli 
+    create_workers();
+    create_users();
+    create_ticket_dispenser();
 }
 void free_memory() {
 
@@ -448,7 +477,7 @@ void free_memory() {
     shmdt(config_shm_ptr);
     shmdt(seats_shm_ptr);
 
-    //printf("[DEBUG] Risorse IPC deallocate correttamente\n");
+    printf("[DEBUG] Risorse IPC deallocate correttamente\n");
 }
 
 
@@ -473,6 +502,9 @@ int main (int argc, char *argv[]){
 
     //sezione: lettura argomenti
     setup_config();
+
+    config_shm_ptr->current_day = 0;
+
     if (argc != 2) {
         fprintf(stderr, "[USAGE] %s <percorso_file_config>\n", argv[0]);
         exit(EXIT_FAILURE);
@@ -491,19 +523,38 @@ int main (int argc, char *argv[]){
     int days_passed;
     for (days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
         debug__print__todays__seats__service();
+        printf("[DEBUG] current_day (in Config) = %d\n", config_shm_ptr->current_day);
 
         wait_to_all_children_be_ready();
         printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
         nanosleep(&daily_woking_time, NULL);
 
-        reset_resources();
-        notify_day_ended();
+       notify_day_ended();
+
+        //aspetta che tutti i figli abbiano finito la giornata
+        semaphore_do(children_ready_sync_sem_id, -no_children);
 
         analytics_compute(days_passed);
         analytics_print(days_passed);
 
+        {
+        struct timespec flush_delay = { .tv_sec = 0, .tv_nsec = 50 * 1000000 };
+        nanosleep(&flush_delay, NULL);
+        }
+
+        reset_resources();
+
         check_explode_threshold();
         randomize_seats_service();
+
+        //Prima di lanciare i nuovi figli, passa al giorno successivo
+        config_shm_ptr->current_day += 1;
+
+        restart_children_for_new_day();
+
+
+
+        //read_and_print_analytics(); //todo:implementare dopo che abbiamo la gestione delle erogazioni
 
         printf("\n==============================\n==============================\n\n [DEBUG] Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
     }

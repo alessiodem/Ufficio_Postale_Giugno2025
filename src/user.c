@@ -10,6 +10,7 @@
 #include "common.h"
 #include "../lib/sem_handling.h"
 #include "../lib/utils.h"
+#include "../lib/analytics.h"   // nuovo: conteggio servizi non erogati
 
 //VARIABILI GLOBALI
 int children_ready_sync_sem_id;
@@ -25,10 +26,14 @@ int tickets_bucket_sem_id;
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
-        //printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
+        printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
+
+        //segnala al manager che la giornata è conclusa 
+        semaphore_increment(children_ready_sync_sem_id);
+
         siglongjmp(jump_buffer, 1); // Salta all'inizio del ciclo
     }else if (sig== SIGTERM) {
-        //printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
+        printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
@@ -52,7 +57,7 @@ void setup_sigaction(){
     }
 }
 void setup_ipcs() {
-    //printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
+    printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
 
     if ((children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, 0666)) == -1) {
         perror("Errore semget KEY_SYNC_START_SEM");
@@ -105,23 +110,24 @@ void setup_ipcs() {
         perror("[ERROR] semget() per tickets_bucket_sem_id fallito");
         exit(EXIT_FAILURE);
     }
-    //printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
+
+    printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
 }
 
 //FUNZIONI DI FLOW PRINCIPALE
 void set_ready() {
-    //printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
+    printf("[DEBUG] Utente %d: Sono pronto per la nuova giornata\n", getpid());
     semaphore_increment(children_ready_sync_sem_id);
     semaphore_do(children_go_sync_sem_id, 0);
-    //printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
+    printf("[DEBUG] Utente %d: Sto iniziando una nuova giornata\n", getpid());
 }
 int decide_if_go() {
-    //printf("[DEBUG] Utente %d: Decido se andare oggi\n", getpid());
+    printf("[DEBUG] Utente %d: Decido se andare oggi\n", getpid());
 
     // Calcolo della probabilità casuale tra P_SERV_MIN e P_SERV_MAX
     double range = config_shm_ptr->P_SERV_MAX - config_shm_ptr->P_SERV_MIN;
     double p_serv = config_shm_ptr->P_SERV_MIN + ((double)rand() / RAND_MAX) * range;
-    //printf("[DEBUG] Utente %d: Il mio p_serv è: %f\n",getpid(), p_serv );
+    printf("[DEBUG] Utente %d: Il mio p_serv è: %f\n",getpid(), p_serv );
     // Generazione della decisione basata su P_SERV
     int decision = ((double)rand() / RAND_MAX <= p_serv);
 
@@ -140,7 +146,7 @@ int check_for_service_availability(ServiceType service_type) {
     printf("[DEBUG] Utente %d: Controllo disponibilità servizio tipo %d\n", getpid(), service_type);
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         if (seats_shm_ptr[i].service_type == service_type && seats_shm_ptr[i].has_operator == 1) {
-             return 1;
+            return 1;
         }
     }
     return 0;
@@ -153,7 +159,7 @@ void go_home() {
 //MAIN
 int main(int argc, char *argv[]) {
     setup_sigaction();
-    srand(time(NULL)*getpid());
+    srand(getpid());
     setup_ipcs();
     sigsetjmp(jump_buffer, 1);
 
@@ -189,7 +195,7 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             //Attendo che il ticket sia marcato come is_done in maniera atomica
-            int done = 0;//todo renderlo più efficente
+            int done = 0;
             while (!done) {
                 semaphore_decrement(tickets_bucket_sem_id);
                 done = tickets_bucket_shm_ptr[trm.ticket_index].is_done;
@@ -198,11 +204,14 @@ int main(int argc, char *argv[]) {
                 if (!done)
                     sched_yield();   //cedo la CPU 
             }
+
+
             printf("------- Utente %d: Servizio completato-------\n", getpid());
 
             go_home();
-        } else {
+        } else {   
             printf("[DEBUG] Utente %d: Servizio non disponibile\n", getpid());
+            analytics_register_not_served(service_type);   
             go_home();
         }
     } else {

@@ -16,9 +16,21 @@ const Service services[] = {
 int get_average_time(ServiceType st){
     return services[st].average_time;
 }
+
+
 Service get_random_service() {
     return services[rand() % NUM_SERVIZI];
 }
+
 ServiceType get_random_service_type() {
     return (ServiceType)(rand() % NUM_SERVIZI);
+}
+void print_ticket_debug( Ticket ticket) {
+
+    printf("===== Ticket Debug Info =====\n");
+    printf("Numero: %d\n", ticket.ticket_index);
+    printf("Tipo di Servizio: %d\n", ticket.service_type);
+    printf("Tempo Stimato: %d secondi\n", ticket.actual_time);
+    printf("Stato: %s\n", ticket.is_done ? "Completato" : "In Attesa");
+    printf("=============================\n");
 }
