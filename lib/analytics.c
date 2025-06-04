@@ -148,8 +148,8 @@ analytics_compute(int current_day){
         //conta utente servito / non servito
         if (t->is_done) {       //vale true se il ticket è stato servito da un operatore.
             //tempo di attesa: total - erogazione
-            double wait_time = t->time_taken - (t->actual_time * config_shm_ptr->N_NANO_SECS)/1000000000;
-            double service_t = (t->actual_time * config_shm_ptr->N_NANO_SECS)/1000000000;//todo: si potrebbe aggiungere un parametro al ticket chiamato 'real_erogation time' che contiene il tempo reale che il ticket ci mette per essere erogato (quindi il tempo passato nella nanosleep del worker)
+            double wait_time = t->time_taken - (t->actual_erogation_time * config_shm_ptr->N_NANO_SECS)/1000000000;
+            double service_t = (t->actual_erogation_time * config_shm_ptr->N_NANO_SECS)/1000000000;//todo: si potrebbe aggiungere un parametro al ticket chiamato 'real_erogation time' che contiene il tempo reale che il ticket ci mette per essere erogato (quindi il tempo passato nella nanosleep del worker)
 
             if (is_today) {
                 ++day_sv->served;

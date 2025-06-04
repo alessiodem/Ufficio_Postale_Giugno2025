@@ -92,7 +92,8 @@ int semaphore_do(int sem_id,int custom_operation) {
     return semop_return;
 }
 int semaphore_do_not_wait(int sem_id,int custom_operation) {
-    //printf("[DEBUG] sto eseguendo do not wait"); se cacci questo commmetno esplode tutto perché il worker lo usa per fare attesa attiva
+    //printf("[DEBUG] sto eseguendo do not wait");
+
     struct sembuf op;
     op.sem_num = 0;
     op.sem_op = custom_operation; 

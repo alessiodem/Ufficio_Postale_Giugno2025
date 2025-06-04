@@ -11,6 +11,7 @@
 #define KEY_BREAK_MGQ (0x11111110)
 #define KEY_TICKETS_TBE_MGQ (0x11111101)
 #define KEY_SEAT_STATUS_MGQ (0x11111100)
+#define KEY_SEAT_FREED_MGQ (0x11111011)
 #define KEY_WORKERS_SEAT_SEM (0x22222222)
 #define KEY_USERS_SEAT_SEM (0x22222220)
 #define KEY_SYNC_START_SEM (0x22222202)
@@ -26,7 +27,7 @@
 #define SECS_FOR_A_DAY (480 * config_shm_ptr->N_NANO_SECS / 1000000000)//todo: per oea è gestito in micro ssecondi perchè altrimenti la iornata è troppo corta per qualche motivo
 #define NSECS_FOR_A_DAY ((480 * config_shm_ptr->N_NANO_SECS) % 1000000000)
 #define LINE_BUFFER_SIZE (1024)
-#define P_BREAK (2) //probabilità 1/10 todo: così è gestita in modo brutto, sistemare o nascondere questa macro
+#define P_BREAK (1) //probabilità 1/10 todo: così è gestita in modo brutto, sistemare o nascondere questa macro
 #define CONFIG_MAX_SEATS (64)//todo questi due potrebbero dare problemi
 #define CONFIG_MAX_WORKERS (64)
 
@@ -51,7 +52,7 @@ typedef struct {
     int ticket_index;                 // ID univoco del ticket
     int user_id;                   // ID dell'utente
     int service_type;             // Tipo di servizio richiesto (es. 0 = anagrafe, 1 = tributi, ecc.)
-    double actual_time;//old ver.
+    double actual_erogation_time;//old ver.
     int is_done; //old ver
 
     struct timespec request_time; // Quando l'utente ha richiesto il servizio
@@ -83,6 +84,11 @@ typedef struct {
     long mtype;
     pid_t worker;
 } Break_message;
+
+typedef struct {
+    long mtype;
+    int seat_index;
+}Freed_seat_message;
 
 
 // Struttura completa dello sportello

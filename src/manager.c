@@ -28,6 +28,7 @@ int children_ready_sync_sem_id;
 int children_go_sync_sem_id;
 int ticket_request_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
+int seat_freed_mgq_id;
 int break_mgq_id = -1;
 int tickets_bucket_sem_id;
 
@@ -169,6 +170,11 @@ void setup_ipcs() {
         perror("Errore nella creazione della message queue per i ticket da erogare");
         exit(EXIT_FAILURE);
     }
+    seat_freed_mgq_id = msgget(KEY_SEAT_FREED_MGQ, EXCLUSIVE_CREATE_FLAG);
+    if (seat_freed_mgq_id == -1) {
+        perror("Errore nella creazione della message queue per i seat liberati");
+        exit(EXIT_FAILURE);
+    }
     break_mgq_id = msgget(KEY_BREAK_MGQ, EXCLUSIVE_CREATE_FLAG);
     if (break_mgq_id == -1) {
         perror("Errore nella creazione della message queue le pause effettuate");
@@ -263,8 +269,6 @@ void load_config(FILE *config_file) {
     }
 }
 
-
-//todo: definire una volta per tutte la durata delle giornate
 void compute_daytime(){
     daily_woking_time.tv_sec=SECS_FOR_A_DAY;
     daily_woking_time.tv_nsec=NSECS_FOR_A_DAY;
@@ -299,6 +303,7 @@ void create_users() {
 
     for (int user = 0; user < config_shm_ptr->NOF_USERS; user++)
         fork_and_execute("./build/user", child_argv);
+
     //printf("[DEBUG] Utenti creati.\n");
 }
 void create_ticket_dispenser(){
@@ -388,18 +393,23 @@ void reset_resources(){
     }
     Ticket_request_message trm;
     // Pulizia dei messaggi presenti nelle message queue
-    while (msgrcv(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), 0, IPC_NOWAIT) != -1);
-    if (errno != ENOMSG) {
-        perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
-    }
-    Ticket_tbe_message ttbemsg; //todo: testare
-    while (msgrcv(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg)-sizeof(ttbemsg.mtype), 0, IPC_NOWAIT) != -1);
-    if (errno != ENOMSG) {
-        perror("[ERRORE] Errore nello svuotamento della message queue tickets_tbe_mgq_id");
-    }
+    while (msgrcv(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), 0, IPC_NOWAIT) != -1)
+        if (errno != ENOMSG) {
+            perror("[ERRORE] Errore nello svuotamento della message queue ticket_request_msg_id");
+        }
+    Ticket_tbe_message ttbemsg;
+    while (msgrcv(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg)-sizeof(ttbemsg.mtype), 0, IPC_NOWAIT) != -1)
+        if (errno != ENOMSG) {
+            perror("[ERRORE] Errore nello svuotamento della message queue tickets_tbe_mgq_id");
+        }
+    Freed_seat_message fsm;
+    while (msgrcv(seat_freed_mgq_id, &fsm, sizeof(fsm)-sizeof(fsm.mtype), 0, IPC_NOWAIT) != -1)
+        if (errno != ENOMSG) {
+            perror("[ERRORE] Errore nello svuotamento della message queue seat_freed_mgq_id");
+        }
 
     if (semctl(tickets_bucket_sem_id, 0, SETVAL, 1) == -1) {
-        perror("Errore nel settaggio iniziale del semaforo tickets_bucket_sem_id");
+        perror("Errore nel settaggio iniziale del semaforo tickets_bucket_sem");
         exit(EXIT_FAILURE);
     }
 
@@ -421,6 +431,7 @@ void free_memory() {
     msgctl(ticket_request_msg_id, IPC_RMID, NULL);
     msgctl(tickets_tbe_mgq_id, IPC_RMID, NULL);
     msgctl(break_mgq_id, IPC_RMID, NULL);
+    msgctl(seat_freed_mgq_id, IPC_RMID, NULL);
     //todo: capire se bisognas prima liminare i messaggi dalla queue
 
     // Rimozione delle memorie condivise
@@ -466,11 +477,6 @@ void term_children() {
 
 int main (int argc, char *argv[]){
     //print_process_life();// se non funziona commenta questa riga
-
-    //Alessandro ha aggiunto un metodo per pulire le ipc in questa riga, non so se vada effettivamente aggiunto perché il programma dovrebbe fare questo tipo di puliziadopo la fine della simulazione ma prima della fine dell'esecuzione del amager in modo da non lasciare risorse allocate quando non servono
-    //è però possibile che la simulazione non venga terminata correttamente quindi forse ha senso inserirla
-    //todo: discutere sui commenti sopra
-
     //sezione: lettura argomenti
     setup_config();
     if (argc != 2) {
@@ -484,6 +490,7 @@ int main (int argc, char *argv[]){
         exit(EXIT_FAILURE);
     }
     load_config(config_file);
+
     printf("%d", getpid());
     setup_simulation();
     printf("[DEBUG] La simulazione sta per essere avviata.\n");
@@ -493,8 +500,12 @@ int main (int argc, char *argv[]){
         debug__print__todays__seats__service();
 
         wait_to_all_children_be_ready();
-        printf("[DEBUG] Giorno %d iniziato.\n", days_passed);
+
+        printf("\n==============================\n==============================\n\n Giorno %d iniziato.\n \n==============================\n==============================\n", days_passed);
+
         nanosleep(&daily_woking_time, NULL);
+
+        printf("\n==============================\n==============================\n\n Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
 
         reset_resources();
         notify_day_ended();
@@ -504,8 +515,6 @@ int main (int argc, char *argv[]){
 
         check_explode_threshold();
         randomize_seats_service();
-
-        printf("\n==============================\n==============================\n\n [DEBUG] Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
     }
 
     printf("[DEBUG] Simulazione terminata.\n");
