@@ -52,7 +52,7 @@ typedef struct {
     int ticket_index;                 // ID univoco del ticket
     int user_id;                   // ID dell'utente
     int service_type;             // Tipo di servizio richiesto (es. 0 = anagrafe, 1 = tributi, ecc.)
-    double actual_erogation_time;//old ver.
+    double actual_deliver_time;//old ver.
     int is_done; //old ver
 
     struct timespec request_time; // Quando l'utente ha richiesto il servizio

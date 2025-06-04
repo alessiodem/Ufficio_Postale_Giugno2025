@@ -350,11 +350,6 @@ void analytics_register_not_served(int s)
     ++total_not_served_all;
 }
 
-//Registra un servizio erogato, con tempi di attesa e di erogazione
-void analytics_register_served(int service_type,
-                               double service_time,
-                               double wait_time);
-
 void analytics_register_served(int s, double service_time, double wait_time)
 {
     //Statistiche della giornata

@@ -30,7 +30,7 @@ void print_ticket_debug( Ticket ticket) {
     printf("===== Ticket Debug Info =====\n");
     printf("Numero: %d\n", ticket.ticket_index);
     printf("Tipo di Servizio: %d\n", ticket.service_type);
-    printf("Tempo Stimato: %d secondi\n", ticket.actual_time);
+    printf("Tempo Stimato: %d secondi\n", ticket.actual_deliver_time);
     printf("Stato: %s\n", ticket.is_done ? "Completato" : "In Attesa");
     printf("=============================\n");
 }

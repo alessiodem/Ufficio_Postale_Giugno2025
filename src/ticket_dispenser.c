@@ -175,14 +175,14 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
         .ticket_index = ticket_number,
         .service_type = service_type,
         //.day_number   = config_shm_ptr->current_day,
-        .actual_erogation_time  = actual_ts,
+        .actual_deliver_time  = actual_ts,
         .is_done      = 0,
         .user_id      = requiring_user_pid,
         .request_time = request_time
     };
 
     printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo reale: %f\n",
-           ticket.ticket_index, (ticket.actual_time*config_shm_ptr->N_NANO_SECS)/1000000000);
+           ticket.ticket_index, (ticket.actual_deliver_time*config_shm_ptr->N_NANO_SECS)/1000000000);
     return ticket;
 }
 
