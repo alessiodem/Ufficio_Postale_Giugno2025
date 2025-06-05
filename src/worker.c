@@ -235,20 +235,20 @@ int main () {
                         (double)(end_ts.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec) / 1e9;
 
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id = getpid();
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number = config_shm_ptr.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number = config_shm_ptr->current_day;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = seat_finder_index;
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = i;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = seat_finder_index;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
                     semaphore_increment(tickets_bucket_sem_id);
 
                     //Registrazione nelle statistiche
                     double wait_time_sec =
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken -
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time;
+                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_deliver_time;
 
                     analytics_register_served(
                         tickets_bucket_shm_ptr[ttbemsg.ticket_index].service_type,
-                        tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_time,
+                        tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_deliver_time,
                         wait_time_sec);
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
