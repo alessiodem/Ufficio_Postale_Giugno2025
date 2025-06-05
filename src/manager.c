@@ -99,21 +99,6 @@ void debug__print__configs(){
     printf("====================\n");
 
 };
-//TODO: questo non funziona senza dei permessi particolari e mi rompo il cazzo a trovare come averli, decidere se eliminare questa funzione
-void debug__print__process__life() {
-    pid_t pid = getpid();
-    char command[256];
-
-    // Use xterm to run strace on the current PID
-    snprintf(command, sizeof(command),
-             "xterm -hold -e 'strace -p %d' &", pid);
-
-    int ret = system(command);
-    if (ret != 0) {
-        perror("Failed to launch xterm");
-    }
-
-}
 
 //FUNZIONI DI SETUP DELLA SIMULAZIONE
 void setup_ipcs() {
@@ -276,7 +261,6 @@ void compute_daytime(){
 void create_seats() {
     //printf("[DEBUG] Creazione posti...\n");
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
-        seats_shm_ptr[i].service_type = get_random_service_type();// todo: questariga si pootrebbe eliminare ed inizializzare i service_type  con randomixe_service_type ad inizio del ciclo del main
         seats_shm_ptr[i].worker_sem_id= create_semaphore_and_setval(IPC_PRIVATE, 1, 0666 | IPC_CREAT, 1);
         seats_shm_ptr[i].has_operator  = 0;
     }
@@ -320,8 +304,6 @@ void setup_simulation(){
     srand(time(NULL)*getpid());
     compute_daytime();
     setup_ipcs();
-    //todo: risolvere il problema sotto
-    //Il modulo analytics ha bisogno della message‑queue pause prontaprima che i worker vengano creati, quindi lo inizializziamo ora.
     analytics_init();
     printf("[DEBUG] Durata di un giorno: %ld secondi e %ld nanosecondi\n", daily_woking_time.tv_sec, daily_woking_time.tv_nsec);
     create_seats();
@@ -432,7 +414,6 @@ void free_memory() {
     msgctl(tickets_tbe_mgq_id, IPC_RMID, NULL);
     msgctl(break_mgq_id, IPC_RMID, NULL);
     msgctl(seat_freed_mgq_id, IPC_RMID, NULL);
-    //todo: capire se bisognas prima liminare i messaggi dalla queue
 
     // Rimozione delle memorie condivise
     int config_shm_id = shmget(KEY_CONFIG_SHM, sizeof(Config), 0666);
@@ -499,7 +480,9 @@ int main (int argc, char *argv[]){
     debug__print__configs();
     int days_passed;
     for (days_passed = 0; days_passed < config_shm_ptr->SIM_DURATION; days_passed++) {
-        debug__print__todays__seats__service();
+
+        randomize_seats_service();
+        //debug__print__todays__seats__service();
 
         wait_to_all_children_be_ready();
 
@@ -520,7 +503,6 @@ int main (int argc, char *argv[]){
 
 
         check_explode_threshold();
-        randomize_seats_service();
 
 
     }
@@ -531,7 +513,7 @@ int main (int argc, char *argv[]){
     term_children();
     free_memory();
 
-    print_end_simulation_output("NESSUN ERRORE",days_passed-1);
+    print_end_simulation_output("Finite le giornate da simulare",days_passed-1);
 
 
     return 0;
