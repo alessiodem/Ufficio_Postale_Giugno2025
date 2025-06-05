@@ -31,10 +31,10 @@ typedef struct {
 void analytics_init(void);
 
 //Calcola le statistiche della giornata corrente e aggiorna
-void analytics_compute(int current_day);
+void analytics_compute();
 
 //Stampa su stdout il report della giornata appena conclusa
-void analytics_print(int current_day);
+void analytics_print();
 
 //Libera eventuali risorse allocate dal modulo.
 void analytics_finalize(void);

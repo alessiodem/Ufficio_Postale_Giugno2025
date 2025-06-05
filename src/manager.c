@@ -375,6 +375,7 @@ void check_explode_threshold() {
             term_children();
             free_memory();
             print_end_simulation_output("EXPLODE THRESHOLD",days_passed-1);
+            analytics_finalize();
             exit(EXIT_FAILURE);
         }
     }
@@ -506,26 +507,22 @@ int main (int argc, char *argv[]){
 
         nanosleep(&daily_woking_time, NULL);
 
-        printf("\n==============================\n==============================\n\n Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
-
+        config_shm_ptr->current_day =days_passed;
+        analytics_compute();
+        analytics_print();
         reset_resources();
         notify_day_ended();
 
-        analytics_compute(days_passed);
-        analytics_print(days_passed);
-
-        {
         struct timespec flush_delay = { .tv_sec = 0, .tv_nsec = 50 * 1000000 };
         nanosleep(&flush_delay, NULL);
-        }
+
+        printf("\n==============================\n==============================\n\n Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
+
 
         check_explode_threshold();
         randomize_seats_service();
 
-        //Prima di lanciare i nuovi figli, passa al giorno successivo
-        config_shm_ptr->current_day += 1;
 
-        printf("\n==============================\n==============================\n\n [DEBUG] Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
     }
 
     printf("[DEBUG] Simulazione terminata.\n");

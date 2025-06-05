@@ -13,7 +13,7 @@ analytics_init()                    	•	Azzera tutte le statistiche (today_stat
 	                                    •	Alloca la memoria per seen_operator_sim, che tiene traccia di quali operatori hanno partecipato durante la simulazione.
 	                                    •	Crea (o apre) una message queue, usata dagli operatori per chiedere pause.
 
-analytics_compute(int current_day)      1.	Azzera le variabili temporanee del giorno (today_stats, ops_per_seat, ecc.).
+analytics_compute()      1.	Azzera le variabili temporanee del giorno (today_stats, ops_per_seat, ecc.).
 	                                    2.	Alloca due array temporanei per:
 	                                        •	Sapere quali operatori hanno lavorato oggi
 	                                        •	Sapere quali sportelli sono stati usati oggi
@@ -29,7 +29,7 @@ analytics_compute(int current_day)      1.	Azzera le variabili temporanee del gi
 	                                    6.	Aggiorna anche delle statistiche assolute (es: quante persone servite in tutta la simulazione)
 	                                    7.	Libera la memoria temporanea.
 
-analytics_print(int current_day)        •	Stampa un report giornaliero, che include:
+analytics_print()        •	Stampa un report giornaliero, che include:
 	                                        •	Quanti utenti sono stati serviti / non serviti per ogni tipo di servizio
 	                                        •	Tempi medi di attesa e servizio
 	                                        •	Quanti operatori hanno lavorato e a quali sportelli
@@ -74,8 +74,8 @@ double wait_today   = 0.0;
 double serv_today   = 0.0;
 
 //matrice operatori-per-sportello per la giornata
-static unsigned ops_per_seat[CONFIG_MAX_SEATS];
-static bool     seen_op_seat[CONFIG_MAX_SEATS][CONFIG_MAX_WORKERS]; //chi ha lavorato dove
+static unsigned *ops_per_seat;
+static bool     **seen_op_seat; //chi ha lavorato dove
 
 //operatori visti nella simulazione
 static bool *seen_operator_sim = NULL;    //lunghezza NOF_WORKERS
@@ -106,14 +106,33 @@ analytics_init(void){
     if (break_mq_id == -1) {
         perror("msgget break_mq");
     }
+    ops_per_seat=malloc(config_shm_ptr->NOF_WORKER_SEATS* sizeof(unsigned));
+    if (ops_per_seat == NULL) {
+        perror("malloc ops_per_seat" );
+        exit(EXIT_FAILURE);
+    }
+    seen_op_seat = malloc(config_shm_ptr->NOF_WORKER_SEATS* sizeof(int *));
+    if (seen_op_seat == NULL) {
+        perror("malloc seen_op_seat" );
+        exit(EXIT_FAILURE);
+    }
+    for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
+        seen_op_seat[i] = malloc(config_shm_ptr->NOF_WORKERS* sizeof(bool));
+        if (seen_op_seat[i] == NULL) {
+            printf("Allocazione memoria per seen_op_seat[%d]",i);
+            exit(EXIT_FAILURE);
+        }
+    }
 }
 
 void
-analytics_compute(int current_day){
+analytics_compute(){
     //azzera le statistiche della giornata
     memset(&today_stats, 0, sizeof(today_stats));
-    memset(ops_per_seat, 0, sizeof(ops_per_seat));
-    memset(seen_op_seat, 0, sizeof(seen_op_seat));
+    memset(ops_per_seat, 0, sizeof(unsigned)*config_shm_ptr->NOF_WORKER_SEATS);
+    for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
+        memset(seen_op_seat[i], 0, config_shm_ptr->NOF_WORKERS * sizeof(bool));
+    }
 
     //Copia i valori dalla configurazione (Config) in variabili locali.
     size_t n_workers = (size_t)config_shm_ptr->NOF_WORKERS;
@@ -143,7 +162,7 @@ analytics_compute(int current_day){
 
         ServiceStats *day_sv  = &today_stats.by_service[t->service_type];   //prende il puntatore alla struttura delle statistiche del servizio usato in un singolo ticket (t), per il giorno corrente (today_stats), e lo memorizza in day_sv per lavorarci più facilmente.
 
-        bool is_today = (t->day_number == current_day);
+        bool is_today = (t->day_number == config_shm_ptr->current_day);
 
         //conta utente servito / non servito
         if (t->is_done) {       //vale true se il ticket è stato servito da un operatore.
@@ -170,7 +189,7 @@ analytics_compute(int current_day){
             if (seat >= 0 && seat < (int)n_seats) {
                 if (!seen_op_seat[seat][op_idx]) {
                     seen_op_seat[seat][op_idx] = true;
-                    ++ops_per_seat[seat];
+                    ops_per_seat[seat]++;
                 }
             }
                 //Se questo operatore non è ancora stato conteggiato oggi, lo aggiungiamo.
@@ -200,7 +219,7 @@ analytics_compute(int current_day){
     if (break_mq_id != -1) {
         Break_message bm;
         //leggi fino a svuotare
-        while (msgrcv(break_mq_id, &bm, sizeof(pid_t), 0, IPC_NOWAIT) != -1)
+        while (msgrcv(break_mq_id, &bm, sizeof(bm)- sizeof(bm.mtype), 0, IPC_NOWAIT) != -1)
             ++today_stats.pauses;
 
         if (errno != ENOMSG && errno != 0)
@@ -247,7 +266,7 @@ print_service_line(const char *label, const ServiceStats *ss)
 }
 
 void
-analytics_print(int current_day)
+analytics_print()
 {
     //1‑6
 
@@ -275,26 +294,24 @@ analytics_print(int current_day)
 
 
 
-    printf("\n========= STATISTICHE ‑ GIORNO %d =========\n", current_day + 1);
+    printf("\n========= STATISTICHE ‑ GIORNO %d =========\n", config_shm_ptr->current_day + 1);
 
-    //Utenti/Servizi
-    printf("Utenti serviti ‑ tot simulazione       : %ld\n", total_served_all);
-    printf("Utenti serviti ‑ media/giorno          : %.2f\n", avg_served_day);
-    printf("Servizi erogati ‑ tot simulazione      : %ld\n", total_served_all);
-    printf("Servizi NON erogati ‑ tot simulazione  : %ld\n", total_not_served_all);
-    printf("Servizi NON erogati - giornata          : %ld\n", not_served_today);
-    printf("Servizi erogati ‑ media/giorno         : %.2f\n", avg_served_day);
-    printf("Servizi NON erogati ‑ media/giorno     : %.2f\n", avg_not_served_day);
+    printf("\nUtenti/Servizi\n");
+    printf("1. Utenti serviti ‑ tot simulazione       : %ld\n", total_served_all);
+    printf("2. Utenti serviti ‑ media/giorno          : %.2f\n", avg_served_day);
+    printf("3. Servizi erogati ‑ tot simulazione      : %ld\n", total_served_all);
+    printf("4. Servizi NON erogati ‑ tot simulazione  : %ld\n", total_not_served_all);
+    printf("5. Servizi erogati ‑ media/giorno         : %.2f\n", avg_served_day);
+    printf("6. Servizi NON erogati ‑ media/giorno     : %.2f\n", avg_not_served_day);
 
-    //Tempi medi
-    printf("Tempo medio attesa ‑ simulazione       : %.2f s\n", avg_wait_sim);
-    printf("Tempo medio attesa ‑ giornata          : %.2f s\n", avg_wait_day);
-    printf("Tempo medio erogazione ‑ simulazione   : %.2f s\n", avg_service_sim);
-    printf("Tempo medio erogazione ‑ giornata      : %.2f s\n", avg_service_day);
+    printf("\nTempi medi\n");
+    printf("7. Tempo medio attesa utenti ‑ simulazione       : %.2f s\n", avg_wait_sim);
+    printf("8. Tempo medio attesa utenti ‑ giornata          : %.2f s\n", avg_wait_day);
+    printf("9. Tempo medio erogazione servizi ‑ simulazione   : %.2f s\n", avg_service_sim);
+    printf("10. Tempo medio erogazione servizi ‑ giornata      : %.2f s\n", avg_service_day);
 
     //11
-
-    printf("\n--- Breakdown per tipologia di servizio ---\n");
+    printf("\n---  11.  --- Breakdown per tipologia di servizio ---\n");
     for (int s = 0; s < NUM_SERVIZI; ++s) {
         ServiceStats *today = &today_stats.by_service[s];
         ServiceStats *tot   = &total_stats.by_service[s];
@@ -311,26 +328,29 @@ analytics_print(int current_day)
         printf("  Tempo medio servizio(oggi / sim)     : %.2f / %.2f s\n", avg_s_today, avg_s_tot);
     }
 
-    //12 13
-    printf("\nOperatori attivi ‑ giornata            : %ld\n", today_stats.unique_operators);
-    printf("Operatori attivi ‑ simulazione         : %ld\n", total_stats.unique_operators);
 
-    //14
+    printf("\n12. Operatori attivi ‑ giornata            : %ld\n", today_stats.unique_operators);
+    printf("13. Operatori attivi ‑ simulazione         : %ld\n", total_stats.unique_operators);
+
+
     double avg_pauses_day = days_completed ? (double)total_stats.pauses / days_completed : 0.0;
-    printf("Pause ‑ media/giorno                   : %.2f\n", avg_pauses_day);
-    printf("Pause ‑ tot simulazione                : %ld\n", total_stats.pauses);
+    printf("14a. Pause ‑ media/giorno                   : %.2f\n", avg_pauses_day);
+    printf("14b. Pause ‑ tot simulazione                : %ld\n", total_stats.pauses);
 
     //15
-    printf("\n--- Rapporto operatori / sportello (giornata) ---\n");
+    printf("\n ---  15.  --- Rapporto operatori / sportello (giornata) ---\n");
     for (int seat = 0; seat < config_shm_ptr->NOF_WORKER_SEATS; ++seat) {
-        printf("Sportello %2d : %u operatori\n", seat, ops_per_seat[seat]);
+        printf(" Sportello %2d : %u operatori\n", seat, ops_per_seat[seat]);
     }
 }
 
 
 void analytics_finalize(void){
     free(seen_operator_sim);
-    seen_operator_sim = NULL;
+    for (int i =0; i < config_shm_ptr->NOF_WORKER_SEATS;i++)
+        if (seen_op_seat[i] != NULL)
+            free(seen_op_seat[i]);
+    free(seen_op_seat);
     //Non rimuoviamo la message‑queue: la può cancellare il manager alla fine
 }
 

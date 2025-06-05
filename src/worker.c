@@ -32,7 +32,7 @@ ServiceType service_type;
 //FUNZIONI DI SETUP
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
-        printf("[DEBUG] Utente %d: Ricevuto segnale di fine giornata\n", getpid());
+        //printf("[DEBUG] Operatore %d: Ricevuto segnale di fine giornata\n", getpid());
         if (current_seat_index >= 0) {
             seats_shm_ptr[current_seat_index].has_operator = 0;
             semaphore_increment(seats_shm_ptr[current_seat_index].worker_sem_id);
@@ -42,7 +42,7 @@ void handle_sig(int sig) {
         siglongjmp(jump_buffer, 1);
 
     }else if (sig== SIGTERM) {
-        //printf("[DEBUG] Utente %d: Ricevuto SIGTERM, termino.\n", getpid());
+        //printf("[DEBUG] Operatore %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
@@ -66,7 +66,7 @@ void setup_sigaction(){
     }
 }
 void setup_ipcs() {
-    //printf("[DEBUG] Utente %d: Inizializzazione IPC\n", getpid());
+    //printf("[DEBUG] Operatore %d: Inizializzazione IPC\n", getpid());
 
     if ((children_ready_sync_sem_id = semget(KEY_SYNC_START_SEM, 1, 0666)) == -1) {
         perror("Errore semget KEY_SYNC_START_SEM");
@@ -131,7 +131,7 @@ void setup_ipcs() {
         exit(EXIT_FAILURE);
     }
 
-    //printf("[DEBUG] Utente %d: IPC inizializzati con successo\n", getpid());
+    //printf("[DEBUG] Operatore %d: IPC inizializzati con successo\n", getpid());
 }
 //FUNZIONI DI DEBUG
 #include <time.h>
@@ -186,7 +186,7 @@ void go_on_break() {
     }
 }
 int main () {
-    srand(time(NULL));
+    srand(time(NULL)*getpid());
     setup_sigaction();
     setup_ipcs();
     available_breaks = config_shm_ptr->NOF_PAUSE;
