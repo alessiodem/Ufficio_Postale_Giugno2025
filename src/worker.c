@@ -41,7 +41,7 @@ void handle_sig(int sig) {
 
         siglongjmp(jump_buffer, 1);
 
-    }else if (sig== SIGTERM) {
+    }else if (sig == SIGTERM || sig == SIGINT) {
         //printf("[DEBUG] Operatore %d: Ricevuto SIGTERM, termino.\n", getpid());
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
@@ -62,6 +62,11 @@ void setup_sigaction(){
 
     if (sigaction(ENDEDDAY, &sa, NULL) == -1) {
         perror("Errore sigaction ENDEDDAY");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sigaction(SIGINT, &sa,NULL)==-1) {
+        perror("Errore sigaction SIGINT");
         exit(EXIT_FAILURE);
     }
 }

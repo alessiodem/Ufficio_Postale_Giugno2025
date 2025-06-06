@@ -29,7 +29,6 @@ Seat *seats_shm_ptr;
 Config *config_shm_ptr;
 
 //SETUP FUNCTIONS
-//todo: to test
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
         //printf("[DEBUG] Ticket Dispenser: Ricevuto segnale di fine giornata\n");
@@ -40,8 +39,7 @@ void handle_sig(int sig) {
         // rimettersi in ready
         siglongjmp(jump_buffer, 1);  // Salta all'inizio del ciclo
     }
-    else if (sig == SIGTERM) {
-        //todo: potrebbe esserci bisogno id altro(come fflush(stdout), non mi sebra serva ma se qualcosa non funziona potrebbe essere per la sua assenza
+    else if (sig == SIGTERM || sig == SIGINT) {
         shmdt(config_shm_ptr);
         shmdt(seats_shm_ptr);
         shmdt(tickets_bucket_shm_ptr);
@@ -62,6 +60,10 @@ void initSigAction() {
 
     if (sigaction(ENDEDDAY, &sa, NULL) == -1) {
         perror("Errore sigaction ENDEDDAY");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGINT, &sa,NULL)==-1) {
+        perror("Errore sigaction SIGINT");
         exit(EXIT_FAILURE);
     }
 }
@@ -88,7 +90,6 @@ void setup_ipcs() {
         perror("[ERROR] msgget() per ticket_tbe_mgq_id fallito");
         exit(EXIT_FAILURE);
     }
-    //todo: controllare se config_shm_id e  seats_shm_id sono necessari (scusa per il todo studido, sono sotanco)
     int config_shm_id = shmget(KEY_CONFIG_SHM, sizeof(Config), 0666);
     if (config_shm_id == -1) {
         perror("[ERROR] shmget() per config_shm fallito");
@@ -142,7 +143,6 @@ double generate_random_time(int average_time) {
     return actual_time;
 }
 
-//todo: potremmo trovare un modo migliore rispetto a questo
 int find_a_seat_index(ServiceType service_type) {
     //printf("[DEBUG] Ticket Dispenser: Ricerca posto per servizio tipo %d\n", service_type);
     int attempts= 0;

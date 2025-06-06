@@ -9,7 +9,8 @@
 
 // Statistiche elementari per una singola tipologia di servizio 
 typedef struct {
-    long   served;        //utenti serviti                  
+    long   served;        //servizi erogati
+    int    unique_users_served;
     long   not_served;    //servizi non erogati              
     double tot_wait;      //somma tempi d’attesa  
     double tot_service;   //somma tempi d’erogazione     

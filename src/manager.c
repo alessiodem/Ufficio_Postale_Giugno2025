@@ -252,6 +252,7 @@ void load_config(FILE *config_file) {
         printf("Errore nella lettura config 3 (parametri inconsistenti)\n");
         exit(EXIT_FAILURE);
     }
+    config_shm_ptr->current_day = 0;
 }
 
 void compute_daytime(){
@@ -299,10 +300,30 @@ void create_ticket_dispenser(){
     fork_and_execute("./build/ticket_dispenser", child_argv);
     //printf("[DEBUG] Ticket dispenser creato.\n");
 }
+void handle_sig(int sig) {
+    if (sig == SIGINT) {
+        //printf("[DEBUG] Direttore %d: Ricevuto SIGINT, termino.\n", getpid());
+        free_memory();
+        exit(0);
+    }
+}
+void setup_sigaction() {
+
+    struct sigaction sa;
+    sa.sa_handler = handle_sig;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    if (sigaction(SIGINT, &sa,NULL)==-1) {
+        perror("Errore sigaction SIGINT");
+        exit(EXIT_FAILURE);
+    }
+}
 
 void setup_simulation(){
     srand(time(NULL)*getpid());
     compute_daytime();
+    setup_sigaction();
     setup_ipcs();
     analytics_init();
     printf("[DEBUG] Durata di un giorno: %ld secondi e %ld nanosecondi\n", daily_woking_time.tv_sec, daily_woking_time.tv_nsec);
@@ -457,10 +478,8 @@ void term_children() {
 
 
 int main (int argc, char *argv[]){
-    //print_process_life();// se non funziona commenta questa riga
     //sezione: lettura argomenti
     setup_config();
-    config_shm_ptr->current_day = 0;
 
     if (argc != 2) {
         fprintf(stderr, "[USAGE] %s <percorso_file_config>\n", argv[0]);
@@ -513,7 +532,7 @@ int main (int argc, char *argv[]){
     term_children();
     free_memory();
 
-    print_end_simulation_output("Finite le giornate da simulare",days_passed-1);
+    print_end_simulation_output("timeout",days_passed-1);
 
 
     return 0;

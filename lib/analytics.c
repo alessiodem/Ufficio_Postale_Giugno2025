@@ -65,7 +65,7 @@ static DayStats today_stats;          //giornata corrente
 
 //richieste dalla consegna
 static long   days_completed          = 0;   //giornate già chiuse
-static long   total_served_all        = 0;   //utenti/servizi serviti
+static long   total_served_all        = 0;   //ticket serviti
 static long   total_not_served_all    = 0;   //servizi non erogati
 static double total_wait_all          = 0.0; //somma tempi d’attesa
 static double total_service_all       = 0.0; //somma tempi erogazione
@@ -79,6 +79,9 @@ static bool     **seen_op_seat; //chi ha lavorato dove
 
 //operatori visti nella simulazione
 static bool *seen_operator_sim = NULL;    //lunghezza NOF_WORKERS
+
+static pid_t *seen_users_sim;
+static int seen_users_sim_counter=0;
 
 
 //Trasforma un PID in un indice tra 0 e NOF_WORKERS-1.
@@ -123,6 +126,11 @@ analytics_init(void){
             exit(EXIT_FAILURE);
         }
     }
+    seen_users_sim=calloc(config_shm_ptr->NOF_USERS, sizeof(pid_t));
+    if (seen_users_sim == NULL) {
+        perror("calloc seen_users_sim" );
+        exit(EXIT_FAILURE);
+    }
 }
 
 void
@@ -146,10 +154,10 @@ analytics_compute(){
         exit(EXIT_FAILURE);
     }
 
-    //Inizio sezione critica: snapshot dei ticket
+    //Inizio sezione critica: snapshot dei ticket (non dovrebbe servire ma per sicurezza la gestiamo comunque )
     semaphore_decrement(tickets_bucket_sem_id);
 
-    //scansiona il bucket dei ticket 
+    //scansiona il bucket dei ticket
     size_t bucket_len = (size_t)config_shm_ptr->NOF_USERS *
                         (size_t)config_shm_ptr->SIM_DURATION;
 
@@ -168,12 +176,24 @@ analytics_compute(){
         if (t->is_done) {       //vale true se il ticket è stato servito da un operatore.
             //tempo di attesa: total - erogazione
             double wait_time = t->time_taken - (t->actual_deliver_time * config_shm_ptr->N_NANO_SECS)/1000000000;
-            double service_t = (t->actual_deliver_time * config_shm_ptr->N_NANO_SECS)/1000000000;//todo: si potrebbe aggiungere un parametro al ticket chiamato 'real_erogation time' che contiene il tempo reale che il ticket ci mette per essere erogato (quindi il tempo passato nella nanosleep del worker)
+            double service_t = (t->actual_deliver_time * config_shm_ptr->N_NANO_SECS)/1000000000;
 
             if (is_today) {
                 ++day_sv->served;
                 day_sv->tot_wait    += wait_time;
                 day_sv->tot_service += service_t;
+
+                int seen=0;
+                for (int i =0; !seen && i<config_shm_ptr->NOF_USERS; i++) {
+                    if (seen_users_sim[i]==t->user_id)
+                        seen=1;
+                }
+                if (!seen) {
+                    seen_users_sim[seen_users_sim_counter]=t->user_id;
+                    seen_users_sim_counter++;
+                    day_sv->unique_users_served++;
+                }else
+                seen=0;
             }
         } else {
             if (is_today)
@@ -236,6 +256,7 @@ analytics_compute(){
         t->not_served  += d->not_served;
         t->tot_wait    += d->tot_wait;
         t->tot_service += d->tot_service;
+        t->unique_users_served += d->unique_users_served;
     }
 
     // Aggiorna anche gli aggregati globali
@@ -269,7 +290,7 @@ void
 analytics_print()
 {
     //1‑6
-
+    double avg_user_served    = days_completed       ? (double) seen_users_sim_counter / days_completed : 0.0;
     double avg_served_day     = days_completed       ? (double)total_served_all     / days_completed : 0.0;
     double avg_not_served_day = days_completed       ? (double)total_not_served_all / days_completed : 0.0;
     double avg_wait_sim       = total_served_all     ?  total_wait_all    / total_served_all    : 0.0;
@@ -297,8 +318,8 @@ analytics_print()
     printf("\n========= STATISTICHE ‑ GIORNO %d =========\n", config_shm_ptr->current_day + 1);
 
     printf("\nUtenti/Servizi\n");
-    printf("1. Utenti serviti ‑ tot simulazione       : %ld\n", total_served_all);
-    printf("2. Utenti serviti ‑ media/giorno          : %.2f\n", avg_served_day);
+    printf("1. Utenti serviti ‑ tot simulazione       : %d\n", seen_users_sim_counter);
+    printf("2. Utenti serviti ‑ media/giorno          : %.2f\n", avg_user_served);
     printf("3. Servizi erogati ‑ tot simulazione      : %ld\n", total_served_all);
     printf("4. Servizi NON erogati ‑ tot simulazione  : %ld\n", total_not_served_all);
     printf("5. Servizi erogati ‑ media/giorno         : %.2f\n", avg_served_day);
@@ -316,13 +337,13 @@ analytics_print()
         ServiceStats *today = &today_stats.by_service[s];
         ServiceStats *tot   = &total_stats.by_service[s];
 
-        double avg_w_today = today->served ? today->tot_wait    / today->served : 0.0;
-        double avg_w_tot   = tot->served   ? tot->tot_wait      / tot->served   : 0.0;
+        double avg_w_today = today->unique_users_served ? today->tot_wait    / today->served : 0.0;
+        double avg_w_tot   = tot->unique_users_served   ? tot->tot_wait      / tot->served   : 0.0;
         double avg_s_today = today->served ? today->tot_service / today->served : 0.0;
         double avg_s_tot   = tot->served   ? tot->tot_service   / tot->served   : 0.0;
 
         printf("Servizio %d:\n", s);
-        printf("  Utenti serviti     (oggi / sim)      : %ld / %ld\n", today->served,     tot->served);
+        printf("  Utenti serviti     (oggi / sim)      : %d / %d\n", today->unique_users_served,     tot->unique_users_served);
         printf("  Servizi non erogati (oggi / sim)     : %ld / %ld\n", today->not_served, tot->not_served);
         printf("  Tempo medio attesa  (oggi / sim)     : %.2f / %.2f s\n", avg_w_today, avg_w_tot);
         printf("  Tempo medio servizio(oggi / sim)     : %.2f / %.2f s\n", avg_s_today, avg_s_tot);
@@ -351,6 +372,8 @@ void analytics_finalize(void){
         if (seen_op_seat[i] != NULL)
             free(seen_op_seat[i]);
     free(seen_op_seat);
+
+    free(seen_users_sim);
     //Non rimuoviamo la message‑queue: la può cancellare il manager alla fine
 }
 
