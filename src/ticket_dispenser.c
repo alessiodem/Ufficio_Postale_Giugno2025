@@ -174,7 +174,7 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
     Ticket ticket = {
         .ticket_index = ticket_number,
         .service_type = service_type,
-        //.day_number   = config_shm_ptr->current_day,
+        .day_number   = config_shm_ptr->current_day,
         .actual_deliver_time  = actual_ts,
         .is_done      = 0,
         .user_id      = requiring_user_pid,

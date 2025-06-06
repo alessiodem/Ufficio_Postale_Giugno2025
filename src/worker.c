@@ -181,7 +181,7 @@ void go_on_break() {
     }
     if (seat_freed_mgq_id != -1) {
         Freed_seat_message fsm = { .mtype = service_type+1, .seat_index = current_seat_index };
-        if (msgsnd(break_mgq_id, &fsm, sizeof(fsm)- sizeof(fsm.mtype), IPC_NOWAIT) == -1)
+        if (msgsnd(seat_freed_mgq_id, &fsm, sizeof(fsm)- sizeof(fsm.mtype), IPC_NOWAIT) == -1)
             perror("[WARN] msgsnd seat_freed_mgq");
     }
 
@@ -240,7 +240,6 @@ int main () {
                         (double)(end_ts.tv_nsec - tickets_bucket_shm_ptr[ttbemsg.ticket_index].request_time.tv_nsec) / 1e9;
 
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id = getpid();
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].day_number = config_shm_ptr->current_day;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = seat_finder_index;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = seat_finder_index;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
