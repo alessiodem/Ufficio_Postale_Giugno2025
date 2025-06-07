@@ -375,8 +375,6 @@ void print_end_simulation_output(char* end_cause, int day_passed) {
     printf("📅 Ultimo giorno simulato : %d\n", day_passed);
     printf("🛑 Causa terminazione     : %s\n", end_cause);
     printf("----------------------------------------\n");
-    printf("📊 Statistiche finali:\n");
-    //analytics_print(days_passed);
     printf("========================================\n\n");
 }
 void check_explode_threshold() {
@@ -435,7 +433,7 @@ void reset_resources(){
     //printf("[DEBUG] Direttore: risorse pulite");
 }
 void free_memory() {
-    free_analytics();
+    //free_analytics();
 
     // Libera memoria allocata dinamicamente
     free(child_pids);
@@ -703,6 +701,8 @@ void compute_analytics() {
     printf("\n\n========= STATISTICHE ‑ GENERALI  =========\n");
     compute_analytics_wrapper(bucket_per_service[NUM_SERVIZI+1],NUM_SERVIZI+1);
     for (int i=0; i<NUM_SERVIZI; i++) {
+        free_temp_analytics();
+        setup_temp_analytics();
         printf("\n\n========= STATISTICHE ‑ SERVIZIO %d =========\n",i);
         compute_analytics_wrapper(bucket_per_service[i],i);
     }
@@ -715,10 +715,10 @@ void free_temp_analytics() {
 void free_analytics() {
     free_temp_analytics();
     for (int service =0; service<NUM_SERVIZI+2;service++){
-    free(analytics_data[service].total_ticket_served_per_day);
-    free(analytics_data[service].user_waiting_time_sum_per_day);
-    free(analytics_data[service].service_serving_time_sum_per_day);
-    free(analytics_data[service].seen_users_sim);
+        free(analytics_data[service].total_ticket_served_per_day);
+        free(analytics_data[service].user_waiting_time_sum_per_day);
+        free(analytics_data[service].service_serving_time_sum_per_day);
+        free(analytics_data[service].seen_users_sim);
     }
     free(op_per_service);
     free(seen_operators_pids_sim);
