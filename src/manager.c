@@ -491,6 +491,8 @@ void term_children() {
         }
     }
 }
+
+//STATISTICHE
 pid_t *seen_users_sim;
 int seen_users_sim_counter=0;
 int *total_ticket_served_per_day;
@@ -560,11 +562,9 @@ void setup_analytics() {
     //15
     Clock_in_message cim;
     for (int i =0; i<config_shm_ptr->NOF_WORKER_SEATS;i++){
-        if (msgrcv(clock_in_mgq_id, &cim, sizeof(cim)-sizeof(cim.mtype), 0, 0) != -1){
-            if (errno != ENOMSG)
-                perror("[ERRORE] Errore nel conteggio degli operatori per servizio");
+        if (msgrcv(clock_in_mgq_id, &cim, sizeof(cim)-sizeof(cim.mtype), 0, 0) != -1)
             op_per_service[cim.service_type]++;
-        }
+
     }
 }
 
@@ -583,8 +583,8 @@ void compute_analytics_wrapper(Ticket bucket[], int service) {
             }else {
                 //1 e 2
                 int seen=0;
-                for (int i =0; !seen && i<config_shm_ptr->NOF_USERS; i++) {
-                    if (seen_users_sim[i]==current_ticket.user_id)
+                for (int j =0; !seen && j<config_shm_ptr->NOF_USERS; j++) {
+                    if (seen_users_sim[j]==current_ticket.user_id)
                         seen=1;
                 }
                 if (!seen) {
@@ -596,8 +596,8 @@ void compute_analytics_wrapper(Ticket bucket[], int service) {
                 //12 e 13
                    //controlla prima se c'è nel generale della simulazione, se non c'è aggiunge il pid ad entrambe le raccolte altrimenti controlla se oggi nonsi era ancora visto
                 seen=0;
-                for (int i =0; !seen && i<config_shm_ptr->NOF_WORKERS; i++) {
-                    if (seen_operators_pids_sim[i]==current_ticket.operator_id)
+                for (int j =0; !seen && j<config_shm_ptr->NOF_WORKERS; j++) {
+                    if (seen_operators_pids_sim[j]==current_ticket.operator_id)
                         seen=1;
                 }
                 if (!seen) {
@@ -607,8 +607,8 @@ void compute_analytics_wrapper(Ticket bucket[], int service) {
                     seen_operators_today_counter++;
                 }else{
                     seen=0;
-                    for (int i =0; !seen && i<config_shm_ptr->NOF_WORKERS; i++) {
-                        if (seen_operators_pids_today[i]==current_ticket.operator_id)
+                    for (int j =0; !seen && j<config_shm_ptr->NOF_WORKERS; j++) {
+                        if (seen_operators_pids_today[j]==current_ticket.operator_id)
                             seen=1;
                     }
                     if (!seen) {
@@ -647,11 +647,9 @@ void compute_analytics_wrapper(Ticket bucket[], int service) {
         //14
         Break_message bm;
 
-        while (msgrcv(break_mgq_id, &bm, sizeof(bm)-sizeof(bm.mtype), 0, IPC_NOWAIT) != -1){
-            if (errno != ENOMSG)
-                perror("[ERRORE] Errore nel conteggio delle pause nelle analitiche");
+        while (msgrcv(break_mgq_id, &bm, sizeof(bm)-sizeof(bm.mtype), 0, IPC_NOWAIT) != -1)
             operators_pauses_sim++;
-        }
+
     }
 
 

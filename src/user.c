@@ -10,7 +10,6 @@
 #include "common.h"
 #include "../lib/sem_handling.h"
 #include "../lib/utils.h"
-#include "../lib/analytics.h"   // nuovo: conteggio servizi non erogati
 
 //VARIABILI GLOBALI
 int children_ready_sync_sem_id;
@@ -139,13 +138,13 @@ int decide_if_go() {
     int decision = ((double)rand() / RAND_MAX <= p_serv);
 
     // Stampa del risultato
-    printf("[DEBUG] Utente %d: Decisione: %s\n", getpid(), decision ? "vado" : "resto a casa");
+    //printf("[DEBUG] Utente %d: Decisione: %s\n", getpid(), decision ? "vado" : "resto a casa");
 
     return decision;
 }
 
 int check_for_service_availability(ServiceType service_type) {
-    printf("[DEBUG] Utente %d: Controllo disponibilità servizio tipo %d\n", getpid(), service_type);
+    //printf("[DEBUG] Utente %d: Controllo disponibilità servizio tipo %d\n", getpid(), service_type);
     for (int i = 0; i < config_shm_ptr->NOF_WORKER_SEATS; i++) {
         if (seats_shm_ptr[i].service_type == service_type && seats_shm_ptr[i].has_operator == 1) {
             return 1;
@@ -176,12 +175,12 @@ int main(int argc, char *argv[]) {
         nanosleep(&time_to_wait_before_going_to_post_office,NULL);
         printf("[DEBUG] Utente %d: vado all'ufficio postale\n", getpid());
         ServiceType service_type = get_random_service_type();
-        printf("[DEBUG] Utente %d: Ho scelto il servizio tipo %d\n", getpid(), service_type);
+        //printf("[DEBUG] Utente %d: Ho scelto il servizio tipo %d\n", getpid(), service_type);
         if (check_for_service_availability(service_type)) {
-            printf("[DEBUG] Utente %d: Servizio disponibile, calcolo tempo di attesa\n", getpid());
+            //printf("[DEBUG] Utente %d: Servizio disponibile, calcolo tempo di attesa\n", getpid());
 
             ///RICHIEDE IL TICKET
-            printf("[DEBUG] Utente %d: Richiedo ticket per servizio tipo %d\n", getpid(), service_type);
+            //printf("[DEBUG] Utente %d: Richiedo ticket per servizio tipo %d\n", getpid(), service_type);
             Ticket_request_message trm;
             trm.mtype = 2;
             trm.requiring_user = getpid();
@@ -194,7 +193,7 @@ int main(int argc, char *argv[]) {
 
             ///RICEVE IL TICKET
             msgrcv(ticket_request_msg_id, &trm, sizeof(trm)-sizeof(trm.mtype), getpid(), 0);
-            printf("[DEBUG] Utente %d: Ho ricevuto il ticket per il servizio richiesto, attendo l'erogazione\n", getpid());
+            //printf("[DEBUG] Utente %d: Ho ricevuto il ticket per il servizio richiesto, attendo l'erogazione\n", getpid());
             if (trm.ticket_index == -1) {
                 printf(" [ERRORE] Utente %d:indice ticket non valido: ticket_index=%d",getpid(),trm.ticket_index);
                 exit(EXIT_FAILURE);
@@ -215,8 +214,7 @@ int main(int argc, char *argv[]) {
 
             go_home();
         } else {
-            printf("[DEBUG] Utente %d: Servizio non disponibile\n", getpid());
-            analytics_register_not_served(service_type);
+            //printf("[DEBUG] Utente %d: Servizio non disponibile\n", getpid());
             go_home();
         }
     } else {

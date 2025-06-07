@@ -205,7 +205,7 @@ int main () {
     Clock_in_message cim={.mtype=1, .service_type= service_type, .worker_pid= getpid()};
     msgsnd(clock_in_mgq_id,&cim,sizeof(cim)-sizeof(cim.mtype),0);
 
-    printf("[DEBUG] Operatore %d: Posso erogare il servizio: %d \n", getpid(),service_type);
+    //printf("[DEBUG] Operatore %d: Posso erogare il servizio: %d \n", getpid(),service_type);
     current_seat_index = -1;
     int seat_finder_index;
     sigsetjmp(jump_buffer, 1);
@@ -216,13 +216,13 @@ int main () {
 
         while ( seat_finder_index<config_shm_ptr->NOF_WORKER_SEATS) {
             if (seats_shm_ptr[seat_finder_index].service_type == service_type && semaphore_do_not_wait(seats_shm_ptr[seat_finder_index].worker_sem_id, -1) == 0) {
-                printf("[DEBUG] Operatore %d: Trovato posto libero %d\n", getpid(), seat_finder_index);
+                //printf("[DEBUG] Operatore %d: Trovato posto libero %d\n", getpid(), seat_finder_index);
                 current_seat_index = seat_finder_index;
                 seats_shm_ptr[seat_finder_index].has_operator = 1;
 
                 //EROGAZIONE SERVIZIO
                 while (1){
-                    printf("[DEBUG] Operatore %d: In attesa di ticket da erogare del mio tipo di servizio \n", getpid());
+                    //printf("[DEBUG] Operatore %d: In attesa di ticket da erogare del mio tipo di servizio \n", getpid());
 
                     Ticket_tbe_message ttbemsg;
                     msgrcv(tickets_tbe_mgq_id, &ttbemsg,sizeof(ttbemsg)-sizeof(long),service_type+1,0);

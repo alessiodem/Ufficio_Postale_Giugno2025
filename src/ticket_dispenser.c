@@ -1,7 +1,5 @@
-#include <errno.h>
 #include <setjmp.h>
 #include <signal.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/msg.h>
@@ -180,8 +178,7 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
         .end_time = {0,0}
     };
 
-    printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo reale: %f\n",
-           ticket.ticket_index, (ticket.actual_deliver_time*config_shm_ptr->N_NANO_SECS)/1000000000);
+    //printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo reale: %f\n",ticket.ticket_index, (ticket.actual_deliver_time*config_shm_ptr->N_NANO_SECS)/1000000000);
     return ticket;
 }
 
@@ -197,10 +194,10 @@ int main(int argc, char *argv[]) {
 
     set_ready();
     while (1) {
-        printf("[DEBUG] Ticket Dispenser: In attesa di richiesta ticket\n");
+        //printf("[DEBUG] Ticket Dispenser: In attesa di richiesta ticket\n");
         msgrcv(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 2, 0);
 
-        printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
+        //printf("[DEBUG] Ticket Dispenser: Ricevuta richiesta da utente %d per servizio tipo %d\n", tmsg.requiring_user, tmsg.service_type);
         Ticket ticket = generate_ticket(tmsg.service_type, ticket_index, tmsg.requiring_user,tmsg.request_time);
         tmsg.mtype = ticket.user_id;
         semaphore_decrement(tickets_bucket_sem_id);
@@ -211,7 +208,7 @@ int main(int argc, char *argv[]) {
         Ticket_tbe_message ttbemsg;
         ttbemsg.ticket_index=ticket.ticket_index;
         ttbemsg.mtype=ticket.service_type+1;//+1 perché m_type non può essere 0 ed esistere un service_type=0
-        printf("[DEBUG] Ticket Dispenser: Invio ticket %d alla coda di tickets da erogare \n",ticket.ticket_index);
+        //printf("[DEBUG] Ticket Dispenser: Invio ticket %d alla coda di tickets da erogare \n",ticket.ticket_index);
         if (msgsnd(tickets_tbe_mgq_id, &ttbemsg, sizeof(ttbemsg) - sizeof(long), 0)==-1) {
             perror("[TD_ERROR] invio ticket da erogare fallito");
         }
@@ -220,7 +217,7 @@ int main(int argc, char *argv[]) {
         if (msgsnd(ticket_request_mgq_id, &tmsg, sizeof(tmsg) - sizeof(long), 0)==-1) {
             perror("[TD_ERROR] invio ticket all'utente fallito");
         }
-        printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
+        //printf("[DEBUG] Ticket Dispenser: Ticket inviato con successo\n");
     }
 
     printf("[DEBUG] Ticket Dispenser %d: Processo terminato in modo inaspettato\n", getpid());
