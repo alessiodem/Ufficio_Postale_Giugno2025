@@ -7,7 +7,6 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 
-#include "../lib/analytics.h"
 #include "common.h"
 #include "../lib/sem_handling.h"
 #include "../lib/utils.h"
@@ -22,6 +21,7 @@ Ticket *tickets_bucket_shm_ptr;
 int seat_freed_mgq_id;
 int ticket_request_msg_id;
 int tickets_tbe_mgq_id;//tbe= to be erogated
+int clock_in_mgq_id =-1;
 int tickets_bucket_sem_id;
 int current_seat_index;
 int available_breaks;
@@ -110,6 +110,11 @@ void setup_ipcs() {
     if (seat_freed_mgq_id == -1) {
         perror("[WARN] msgget() seat_freed_mgq_id fallito");
     }
+    clock_in_mgq_id = msgget(KEY_CLOCK_IN_MGQ, 0666);
+    if (clock_in_mgq_id == -1) {
+        perror("[WARN] msgget() clock_in_mgq_id fallito");
+    }
+
     int seats_shm_id = shmget(KEY_SEATS_SHM, sizeof(Seat) * config_shm_ptr->NOF_WORKER_SEATS, 0666);
     if (seats_shm_id == -1) {
         perror("[ERROR] shmget() per seats_shm fallito");
@@ -176,7 +181,7 @@ void go_on_break() {
 
     if (break_mgq_id != -1) {
         Break_message bm = { .mtype = 1, .worker = getpid() };
-        if (msgsnd(break_mgq_id, &bm, sizeof(pid_t), IPC_NOWAIT) == -1)
+        if (msgsnd(break_mgq_id, &bm, sizeof(bm)- sizeof(bm.mtype), IPC_NOWAIT) == -1)
             perror("[WARN] msgsnd break_mgq");
     }
     if (seat_freed_mgq_id != -1) {
@@ -196,6 +201,10 @@ int main () {
     setup_ipcs();
     available_breaks = config_shm_ptr->NOF_PAUSE;
     service_type = get_random_service_type();
+
+    Clock_in_message cim={.mtype=1, .service_type= service_type, .worker_pid= getpid()};
+    msgsnd(clock_in_mgq_id,&cim,sizeof(cim)-sizeof(cim.mtype),0);
+
     printf("[DEBUG] Operatore %d: Posso erogare il servizio: %d \n", getpid(),service_type);
     current_seat_index = -1;
     int seat_finder_index;
@@ -241,19 +250,9 @@ int main () {
 
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].operator_id = getpid();
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = seat_finder_index;
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].seat_index = seat_finder_index;
                     tickets_bucket_shm_ptr[ttbemsg.ticket_index].is_done = 1;
                     semaphore_increment(tickets_bucket_sem_id);
 
-                    //Registrazione nelle statistiche
-                    double wait_time_sec =
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].time_taken -
-                    tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_deliver_time;
-
-                    analytics_register_served(
-                        tickets_bucket_shm_ptr[ttbemsg.ticket_index].service_type,
-                        tickets_bucket_shm_ptr[ttbemsg.ticket_index].actual_deliver_time,
-                        wait_time_sec);
 
                     printf("[DEBUG] Operatore %d: Servizio completato\n", getpid());
                     semaphore_decrement(tickets_bucket_sem_id);

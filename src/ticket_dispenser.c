@@ -27,16 +27,14 @@ int seat_finder_index=0;
 Ticket *tickets_bucket_shm_ptr;
 Seat *seats_shm_ptr;
 Config *config_shm_ptr;
+int current_day=0;
 
 //SETUP FUNCTIONS
 void handle_sig(int sig) {
     if (sig == ENDEDDAY) {
         //printf("[DEBUG] Ticket Dispenser: Ricevuto segnale di fine giornata\n");
-        // pulire risorse
+        current_day++;
 
-        // se serve terminare in modo pulito le risorse posso farlo qui
-
-        // rimettersi in ready
         siglongjmp(jump_buffer, 1);  // Salta all'inizio del ciclo
     }
     else if (sig == SIGTERM || sig == SIGINT) {
@@ -174,11 +172,12 @@ Ticket generate_ticket(ServiceType service_type, int ticket_number, pid_t requir
     Ticket ticket = {
         .ticket_index = ticket_number,
         .service_type = service_type,
-        .day_number   = config_shm_ptr->current_day,
+        .day_number   = current_day,
         .actual_deliver_time  = actual_ts,
         .is_done      = 0,
         .user_id      = requiring_user_pid,
-        .request_time = request_time
+        .request_time = request_time,
+        .end_time = {0,0}
     };
 
     printf("[DEBUG] Ticket Dispenser: Ticket generato - Numero: %d, Tempo reale: %f\n",

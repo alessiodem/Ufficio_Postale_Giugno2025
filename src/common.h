@@ -12,6 +12,7 @@
 #define KEY_TICKETS_TBE_MGQ (0x11111101)
 #define KEY_SEAT_STATUS_MGQ (0x11111100)
 #define KEY_SEAT_FREED_MGQ (0x11111011)
+#define KEY_CLOCK_IN_MGQ (0x11111010)
 #define KEY_WORKERS_SEAT_SEM (0x22222222)
 #define KEY_USERS_SEAT_SEM (0x22222220)
 #define KEY_SYNC_START_SEM (0x22222202)
@@ -51,7 +52,7 @@ typedef struct {
     int ticket_index;                 // ID univoco del ticket
     int user_id;                   // ID dell'utente
     int service_type;             // Tipo di servizio richiesto (es. 0 = anagrafe, 1 = tributi, ecc.)
-    double actual_deliver_time;//old ver.
+    double actual_deliver_time;
     int is_done; //old ver
 
     struct timespec request_time; // Quando l'utente ha richiesto il servizio
@@ -88,6 +89,12 @@ typedef struct {
     long mtype;
     int seat_index;
 }Freed_seat_message;
+
+typedef struct{
+    long mtype;
+    ServiceType service_type;
+    pid_t worker_pid;
+}Clock_in_message;
 
 
 // Struttura completa dello sportello

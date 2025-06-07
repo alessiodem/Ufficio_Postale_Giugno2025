@@ -25,6 +25,7 @@ Service get_random_service() {
 ServiceType get_random_service_type() {
     return (ServiceType)(rand() % NUM_SERVIZI);
 }
+
 void print_ticket_debug( Ticket ticket) {
 
     printf("===== Ticket Debug Info =====\n");
