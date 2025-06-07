@@ -379,15 +379,16 @@ void print_end_simulation_output(char* end_cause, int day_passed) {
 }
 void check_explode_threshold() {
     int users_waiting=0;
-    for (int i = 0;i<config_shm_ptr->NOF_USERS && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0;i++) {//può non essere gestita la mutua esclusione perché durante l'esecuzione di questa line gli altri processi attendono al ready-go
-        users_waiting++;
-        if (users_waiting> config_shm_ptr->EXPLODE_THRESHOLD) {
-            term_children();
-            free_memory();
-            print_end_simulation_output("EXPLODE THRESHOLD",days_passed-1);
-            //analytics_finalize();
-            exit(EXIT_FAILURE);
-        }
+    printf("\nutenti in attesa%d\n",users_waiting);
+    for (int i = 0;i<config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0 && tickets_bucket_shm_ptr[i].request_time.tv_nsec!=0 && tickets_bucket_shm_ptr[i].request_time.tv_sec!=0 ;i++) {//può non essere gestita la mutua esclusione perché durante l'esecuzione di questa line gli altri processi attendono al ready-go
+            users_waiting++;
+        printf("\nutenti in attesa%d\n",users_waiting);
+    }
+    if (users_waiting> config_shm_ptr->EXPLODE_THRESHOLD) {
+        term_children();
+        free_memory();
+        print_end_simulation_output("EXPLODE THRESHOLD",days_passed-1);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -756,6 +757,7 @@ int main (int argc, char *argv[]){
 
         nanosleep(&daily_woking_time, NULL);
 
+
         printf("\n==============================\n==============================\n\n Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
 
         config_shm_ptr->current_day =days_passed;
@@ -764,12 +766,7 @@ int main (int argc, char *argv[]){
         reset_resources();
         notify_day_ended();
 
-        struct timespec flush_delay = { .tv_sec = 0, .tv_nsec = 50 * 1000000 };
-        nanosleep(&flush_delay, NULL);
-
-
         check_explode_threshold();
-
 
     }
 
