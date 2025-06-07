@@ -118,4 +118,13 @@ typedef struct{
     int current_day;
 }Config;
 
+typedef struct {
+    pid_t *seen_users_sim;
+    int seen_users_sim_counter;
+    int *total_ticket_served_per_day;
+    int total_ticket_unserved;
+    double *user_waiting_time_sum_per_day;
+    double *service_serving_time_sum_per_day;
+}Analytics_data;
+
 #endif //COMMON_H

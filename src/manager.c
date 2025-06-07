@@ -493,12 +493,7 @@ void term_children() {
 }
 
 //STATISTICHE
-pid_t *seen_users_sim;
-int seen_users_sim_counter=0;
-int *total_ticket_served_per_day;
-int total_ticket_unserved;
-double *user_waiting_time_sum_per_day;
-double *service_serving_time_sum_per_day;
+Analytics_data analytics_data[NUM_SERVIZI+2];
 
 pid_t *seen_operators_pids_today;
 int seen_operators_today_counter;
@@ -518,7 +513,7 @@ void setup_temp_analytics(){
         perror("calloc seen_operators_sim" );
         exit(EXIT_FAILURE);
     }
-    seats_per_service=calloc(config_shm_ptr->NOF_WORKER_SEATS, sizeof(int));
+    seats_per_service=calloc(NUM_SERVIZI, sizeof(int));
     if (seats_per_service == NULL) {
         perror("calloc seats_per_service" );
         exit(EXIT_FAILURE);
@@ -526,29 +521,35 @@ void setup_temp_analytics(){
 
 }
 void setup_analytics() {
-    seen_users_sim=calloc(config_shm_ptr->NOF_USERS, sizeof(pid_t));
-    if (seen_users_sim == NULL) {
-        perror("calloc seen_users_sim" );
-        exit(EXIT_FAILURE);
+
+    for (int i =0; i<NUM_SERVIZI+2; i++) {
+        analytics_data[i].seen_users_sim_counter=0;
+        analytics_data[i].seen_users_sim=calloc(config_shm_ptr->NOF_USERS, sizeof(pid_t));
+
+        if (analytics_data[i].seen_users_sim == NULL) {
+            perror("calloc seen_users_sim" );
+            exit(EXIT_FAILURE);
+        }
+        analytics_data[i].total_ticket_served_per_day=calloc(config_shm_ptr->SIM_DURATION, sizeof(int));
+        if (analytics_data[i].total_ticket_served_per_day == NULL) {
+            perror("calloc total_ticket_served_per_day" );
+            exit(EXIT_FAILURE);
+        }
+        analytics_data[i].user_waiting_time_sum_per_day=calloc(config_shm_ptr->SIM_DURATION, sizeof(double));
+        if (analytics_data[i].user_waiting_time_sum_per_day == NULL) {
+            perror("calloc user_waiting_time_sum_per_day" );
+            exit(EXIT_FAILURE);
+        }
+        analytics_data[i].service_serving_time_sum_per_day=calloc(config_shm_ptr->SIM_DURATION, sizeof(int));
+        if (analytics_data[i].service_serving_time_sum_per_day == NULL) {
+            perror("calloc service_serving_time_sum_per_day" );
+            exit(EXIT_FAILURE);
+        }
+
     }
     seen_operators_pids_sim=calloc(config_shm_ptr->NOF_USERS, sizeof(pid_t));
     if (seen_operators_pids_sim == NULL) {
         perror("calloc seen_operators_pids_sim" );
-        exit(EXIT_FAILURE);
-    }
-    total_ticket_served_per_day=calloc(config_shm_ptr->SIM_DURATION, sizeof(int));
-    if (total_ticket_served_per_day == NULL) {
-        perror("calloc total_ticket_served_per_day" );
-        exit(EXIT_FAILURE);
-    }
-    user_waiting_time_sum_per_day=calloc(config_shm_ptr->SIM_DURATION, sizeof(double));
-    if (user_waiting_time_sum_per_day == NULL) {
-        perror("calloc user_waiting_time_sum_per_day" );
-        exit(EXIT_FAILURE);
-    }
-    service_serving_time_sum_per_day=calloc(config_shm_ptr->SIM_DURATION, sizeof(int));
-    if (service_serving_time_sum_per_day == NULL) {
-        perror("calloc service_serving_time_sum_per_day" );
         exit(EXIT_FAILURE);
     }
     op_per_service=calloc(config_shm_ptr->NOF_WORKERS, sizeof(int));
@@ -569,7 +570,7 @@ void setup_analytics() {
 }
 
 void compute_analytics_wrapper(Ticket bucket[], int service) {
-    total_ticket_unserved=0;
+    analytics_data[service].total_ticket_unserved=0;
     seen_operators_today_counter=0;
 
     int today= config_shm_ptr->current_day+1;
@@ -579,17 +580,17 @@ void compute_analytics_wrapper(Ticket bucket[], int service) {
 
             if (current_ticket.end_time.tv_nsec == 0 && current_ticket.end_time.tv_sec == 0 && current_ticket.request_time.tv_nsec != 0 &&current_ticket.request_time.tv_sec != 0  ) {
                 //4
-                total_ticket_unserved++;
+                analytics_data[service].total_ticket_unserved++;
             }else {
                 //1 e 2
                 int seen=0;
                 for (int j =0; !seen && j<config_shm_ptr->NOF_USERS; j++) {
-                    if (seen_users_sim[j]==current_ticket.user_id)
+                    if (analytics_data[service].seen_users_sim[j]==current_ticket.user_id)
                         seen=1;
                 }
                 if (!seen) {
-                    seen_users_sim[seen_users_sim_counter]=current_ticket.user_id;
-                    seen_users_sim_counter++;
+                    analytics_data[service].seen_users_sim[analytics_data[service].seen_users_sim_counter]=current_ticket.user_id;
+                    analytics_data[service].seen_users_sim_counter++;
 
                 }else
                     seen=0;
@@ -620,28 +621,28 @@ void compute_analytics_wrapper(Ticket bucket[], int service) {
                 }
 
                 //3 e 5 e supporto ad altre
-                total_ticket_served_per_day[current_ticket.day_number]++;
+                analytics_data[service].total_ticket_served_per_day[current_ticket.day_number]++;
 
                 //7 e 8
-                user_waiting_time_sum_per_day[current_ticket.day_number]+=current_ticket.time_taken - (current_ticket.actual_deliver_time*((double)config_shm_ptr->N_NANO_SECS)/1000000000);
+                analytics_data[service].user_waiting_time_sum_per_day[current_ticket.day_number]+=current_ticket.time_taken - (current_ticket.actual_deliver_time*((double)config_shm_ptr->N_NANO_SECS)/1000000000);
 
                 //9 e 10
-                service_serving_time_sum_per_day[current_ticket.day_number]+=current_ticket.actual_deliver_time*(double)config_shm_ptr->N_NANO_SECS/1000000000;
+                analytics_data[service].service_serving_time_sum_per_day[current_ticket.day_number]+=current_ticket.actual_deliver_time*(double)config_shm_ptr->N_NANO_SECS/1000000000;
 
             }
         }
     }
     double user_waiting_time_sum=0;
     for (int i=0; i< config_shm_ptr->SIM_DURATION;i++) {
-        user_waiting_time_sum+=user_waiting_time_sum_per_day[i];
+        user_waiting_time_sum+=analytics_data[service].user_waiting_time_sum_per_day[i];
     }
     int total_ticket_served=0;
     for (int i=0; i< config_shm_ptr->SIM_DURATION;i++) {
-        total_ticket_served+=total_ticket_served_per_day[i];
+        total_ticket_served+=analytics_data[service].total_ticket_served_per_day[i];
     }
     double service_serving_time_sum=0;
     for (int i=0; i< config_shm_ptr->SIM_DURATION;i++) {
-        service_serving_time_sum+=service_serving_time_sum_per_day[i];
+        service_serving_time_sum+=analytics_data[service].service_serving_time_sum_per_day[i];
     }
     if (service==NUM_SERVIZI+1) {
         //14
@@ -653,26 +654,26 @@ void compute_analytics_wrapper(Ticket bucket[], int service) {
     }
 
 
-    printf("\n============ GIORNO %d ============\n", today);
+    printf("\n============ GIORNO %d ============\n", today-1);
 
     printf("\nUtenti/Servizi\n");
-    printf("1. Utenti serviti ‑ tot simulazione       : %d\n", seen_users_sim_counter);
-    printf("2. Utenti serviti ‑ media/giorno          : %.2f\n", today       ? (double) seen_users_sim_counter /today : 0.0);
+    printf("1. Utenti serviti ‑ tot simulazione       : %d\n", analytics_data[service].seen_users_sim_counter);
+    printf("2. Utenti serviti ‑ media/giorno          : %.2f\n", today       ? (double) analytics_data[service].seen_users_sim_counter /today : 0.0);
     printf("3. Servizi erogati ‑ tot simulazione      : %d\n", total_ticket_served);
-    printf("4. Servizi NON erogati ‑ tot simulazione  : %d\n", total_ticket_unserved);
+    printf("4. Servizi NON erogati ‑ tot simulazione  : %d\n", analytics_data[service].total_ticket_unserved);
     printf("5. Servizi erogati ‑ media/giorno         : %.2f\n", today      ? (double) total_ticket_served / today: 0.0);
-    printf("6. Servizi NON erogati ‑ media/giorno     : %.2f\n", today       ? (double) total_ticket_unserved / today : 0.0);
+    printf("6. Servizi NON erogati ‑ media/giorno     : %.2f\n", today       ? (double) analytics_data[service].total_ticket_unserved / today : 0.0);
 
     printf("\nTempi medi\n");
     printf("7. Tempo medio attesa utenti ‑ simulazione       : %f s\n", total_ticket_served       ? user_waiting_time_sum / total_ticket_served : 0.0);
-    printf("8. Tempo medio attesa utenti ‑ giornata          : %f s\n", total_ticket_served_per_day[today-1]       ? user_waiting_time_sum_per_day[today-1] / total_ticket_served_per_day[today-1] : 0.0);
+    printf("8. Tempo medio attesa utenti ‑ giornata          : %f s\n", analytics_data[service].total_ticket_served_per_day[today-1]       ? analytics_data[service].user_waiting_time_sum_per_day[today-1] / analytics_data[service].total_ticket_served_per_day[today-1] : 0.0);
     printf("9. Tempo medio erogazione servizi ‑ simulazione   : %f s\n", total_ticket_served       ? service_serving_time_sum / total_ticket_served : 0.0);
-    printf("10. Tempo medio erogazione servizi ‑ giornata      : %f s\n", total_ticket_served_per_day[today-1]       ? service_serving_time_sum_per_day[today-1] / total_ticket_served_per_day[today-1] : 0.0);
+    printf("10. Tempo medio erogazione servizi ‑ giornata      : %f s\n", analytics_data[service].total_ticket_served_per_day[today-1]       ? analytics_data[service].service_serving_time_sum_per_day[today-1] / analytics_data[service].total_ticket_served_per_day[today-1] : 0.0);
 
     //solo statistiche generali
     if (service==NUM_SERVIZI+1) {
-       printf("\n12. Operatori attivi ‑ giornata            : %f\n", (double)seen_operators_today_counter/today);
-       printf("13. Operatori attivi ‑ simulazione         : %d\n", seen_operators_today_counter);
+       printf("\n12. Operatori attivi ‑ giornata            : %d\n", seen_operators_today_counter);
+       printf("13. Operatori attivi ‑ simulazione         : %d\n", seen_operators_sim_counter);
         printf("14a. Pause ‑ media/giorno                   : %f\n", today ? (double)operators_pauses_sim/today : 0.0);
         printf("14b. Pause ‑ tot simulazione                : %d\n", operators_pauses_sim);
 
@@ -702,9 +703,7 @@ void compute_analytics() {
     printf("\n\n========= STATISTICHE ‑ GENERALI  =========\n");
     compute_analytics_wrapper(bucket_per_service[NUM_SERVIZI+1],NUM_SERVIZI+1);
     for (int i=0; i<NUM_SERVIZI; i++) {
-    printf("\n\n========= STATISTICHE ‑ SERVIZIO %d =========\n",i);
-        free_temp_analytics();
-        setup_temp_analytics();
+        printf("\n\n========= STATISTICHE ‑ SERVIZIO %d =========\n",i);
         compute_analytics_wrapper(bucket_per_service[i],i);
     }
 
@@ -714,13 +713,15 @@ void free_temp_analytics() {
     free(seats_per_service);
 }
 void free_analytics() {
-free_temp_analytics();
-    free(total_ticket_served_per_day);
-    free(user_waiting_time_sum_per_day);
-    free(service_serving_time_sum_per_day);
+    free_temp_analytics();
+    for (int service =0; service<NUM_SERVIZI+2;service++){
+    free(analytics_data[service].total_ticket_served_per_day);
+    free(analytics_data[service].user_waiting_time_sum_per_day);
+    free(analytics_data[service].service_serving_time_sum_per_day);
+    free(analytics_data[service].seen_users_sim);
+    }
     free(op_per_service);
     free(seen_operators_pids_sim);
-    free(seen_users_sim);
 }
 
 int main (int argc, char *argv[]){
@@ -755,6 +756,8 @@ int main (int argc, char *argv[]){
 
         nanosleep(&daily_woking_time, NULL);
 
+        printf("\n==============================\n==============================\n\n Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
+
         config_shm_ptr->current_day =days_passed;
         compute_analytics();
 
@@ -764,8 +767,6 @@ int main (int argc, char *argv[]){
         struct timespec flush_delay = { .tv_sec = 0, .tv_nsec = 50 * 1000000 };
         nanosleep(&flush_delay, NULL);
 
-        printf("\n==============================\n==============================\n\n Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
-
 
         check_explode_threshold();
 
@@ -774,7 +775,6 @@ int main (int argc, char *argv[]){
 
     printf("[DEBUG] Simulazione terminata.\n");
 
-    //analytics_finalize();
     term_children();
     free_memory();
 
