@@ -495,6 +495,7 @@ void term_children() {
         } else {
             // printf("[DEBUG] Segnale di terminazione inviato al processo figlio %d\n", child_pids[i]);
         }
+
     }
 }
 
@@ -769,10 +770,13 @@ int main (int argc, char *argv[]){
         printf("\n==============================\n==============================\n\n Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
 
         config_shm_ptr->current_day =days_passed;
-        compute_analytics();
-
+        printf ("SLEPPO\n\n\n");
+        sleep (20);
         reset_resources();
         notify_day_ended();
+        compute_analytics();
+
+
 
         check_explode_threshold(days_passed);
 

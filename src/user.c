@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
 
     if ((double)rand() / RAND_MAX <= p_serv) {
         printf("[DEBUG] Utente %d: Decisione: vado\n", getpid());
-        time_to_wait_before_going_to_post_office.tv_sec = rand() % SECS_FOR_A_DAY;
+        time_to_wait_before_going_to_post_office.tv_sec = (time_t)((double)rand() / RAND_MAX * SECS_FOR_A_DAY);
         time_to_wait_before_going_to_post_office.tv_nsec = rand() % 1000000000;
 
         printf("[DEBUG] Utente %d: aspettero' %ld,%ld secondi prima di andare all'ufficio postale\n",getpid(), time_to_wait_before_going_to_post_office.tv_sec, time_to_wait_before_going_to_post_office.tv_nsec);
