@@ -379,9 +379,18 @@ void print_end_simulation_output(char* end_cause, int day_passed) {
 }
 void check_explode_threshold(int current_day) {
     int users_waiting=0;
-    for (int i = 0;i<config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION && current_day==tickets_bucket_shm_ptr[i].day_number && tickets_bucket_shm_ptr[i].end_time.tv_nsec==0 && tickets_bucket_shm_ptr[i].end_time.tv_sec==0 && tickets_bucket_shm_ptr[i].request_time.tv_nsec!=0 && tickets_bucket_shm_ptr[i].request_time.tv_sec!=0 ;i++) {//può non essere gestita la mutua esclusione perché durante l'esecuzione di questa line gli altri processi attendono al ready-go
-            users_waiting++;
+    for (int i = 0; i < config_shm_ptr->NOF_USERS*config_shm_ptr->SIM_DURATION; i++) {
+    Ticket *t = &tickets_bucket_shm_ptr[i];
+
+    if (t->day_number == current_day &&
+        t->request_time.tv_sec  != 0 &&
+        t->request_time.tv_nsec != 0 &&
+        t->end_time.tv_sec  == 0 &&
+        t->end_time.tv_nsec == 0)
+    {
+        users_waiting++;
     }
+}
     if (users_waiting> config_shm_ptr->EXPLODE_THRESHOLD) {
         term_children();
         free_memory();
@@ -522,6 +531,7 @@ void setup_analytics() {
     for (int i =0; i<NUM_SERVIZI+2; i++) {
         analytics_data[i].seen_users_sim_counter=0;
         analytics_data[i].seen_users_sim=calloc(config_shm_ptr->NOF_USERS, sizeof(pid_t));
+        analytics_data[i].total_ticket_unserved=0;
 
         if (analytics_data[i].seen_users_sim == NULL) {
             perror("calloc seen_users_sim" );
@@ -564,10 +574,10 @@ void setup_analytics() {
             op_per_service[cim.service_type]++;
 
     }
+
 }
 
 void compute_analytics_wrapper(Ticket bucket[], int service) {
-    analytics_data[service].total_ticket_unserved=0;
     seen_operators_today_counter=0;
 
     int today= config_shm_ptr->current_day+1;
