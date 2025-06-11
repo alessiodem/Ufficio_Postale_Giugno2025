@@ -8,7 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/msg.h>
-
+#include <sys/wait.h>
 
 #include "common.h"
 #include "../lib/sem_handling.h"
@@ -495,7 +495,14 @@ void term_children() {
         } else {
             // printf("[DEBUG] Segnale di terminazione inviato al processo figlio %d\n", child_pids[i]);
         }
-
+        int status;
+        if (waitpid(child_pids[i], &status, 0) == -1) {
+            if (errno != ECHILD) {
+                perror("[ERRORE] Errore in waitpid");
+            }
+        } else {
+            //printf("[DEBUG] Processo figlio %d terminato con status %d\n", child_pids[i], status);
+        }
     }
 }
 
@@ -768,13 +775,13 @@ int main (int argc, char *argv[]){
 
 
         printf("\n==============================\n==============================\n\n Giorno %d terminato.\n \n==============================\n==============================\n", days_passed);
-
+        compute_analytics();
         config_shm_ptr->current_day =days_passed;
-        printf ("SLEPPO\n\n\n");
-        sleep (20);
+        //printf ("SLEPPO\n\n\n");
+        //sleep (20);
         reset_resources();
         notify_day_ended();
-        compute_analytics();
+
 
 
 
